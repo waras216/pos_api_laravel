@@ -2,26 +2,31 @@
 
 namespace App\Models;
 
+use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
+use Laravel\Sanctum\HasApiTokens;
 
-class Usuarios extends Model
+class Usuarios extends Authenticatable
 {
-    use HasFactory;
+    use HasFactory, HasApiTokens;
 
     protected $primaryKey = 'id_usuario';
 
     protected $fillable = [
+        'id_tenant',
         'nombre',
         'email',
         'password',
     ];
 
-    public function tenant()
+    protected $hidden = [
+        'password',
+    ];
+
+    public function usuarios()
     {
-        return $this->hasMany(Tenant::class,'id_usuario', 'id_usuario'); 
+        return $this->belongsTo(Usuarios::class, 'id_tenant', 'id_tenant');
     }
-    
     public function roles()
     {
         return $this->belongsToMany(Rol::class, 'id_rol', 'id_rol');

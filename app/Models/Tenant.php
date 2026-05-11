@@ -4,10 +4,11 @@
     use Illuminate\Database\Eloquent\Factories\HasFactory;
     use Illuminate\Database\Eloquent\Model;
     use Illuminate\Database\Eloquent\Relations\BelongsTo;
+    use Illuminate\Database\Eloquent\SoftDeletes;
 
     class Tenant extends Model
     {
-        use HasFactory;
+        use HasFactory, SoftDeletes;
 
         protected $primaryKey = 'id_tenant';
         
@@ -27,7 +28,14 @@
         {   
             return $this->belongsTo(Plan::class, 'id_plan', 'id_plan');
         }
-        public function usuario():BelongsTo{
-            return $this->belongsTo(Usuarios::class, 'id_usuario', 'id_usuario');
+
+        public function categorias(){
+            return $this->belongsTo(Categoria::class, 'id_tenant', 'id_tenant');            
+        }
+        public function productos(){
+            return $this->hasMany(Producto::class, 'id_tenant', 'id_tenant');
+        }
+        public function usuarios(){
+            return $this->hasMany(Usuarios::class, 'id_tenant', 'id_tenant');
         }
     }

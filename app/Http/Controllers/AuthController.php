@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Usuario;
+use App\Models\Usuarios;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -15,7 +15,7 @@ class AuthController extends Controller
             'password' => 'required'
         ]);
 
-        $user = Usuario::where('email', $request->email)->first();
+        $user = Usuarios::where('email', $request->email)->first();
 
         if(!$user || !Hash::check($request->password,$user->password)){
             return response()->json([
@@ -37,7 +37,7 @@ class AuthController extends Controller
             'password' => 'required|min:6',
         ]);
 
-        $user = Usuario::create([
+        $user = Usuarios::create([
             'email' => $data['email'],
             'password' => Hash::make($data['password']),
         ]);

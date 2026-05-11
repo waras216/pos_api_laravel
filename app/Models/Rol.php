@@ -17,11 +17,11 @@ class Rol extends Model
 
     public function users()
     {
-        return $this->belongsToMany(User::class, 'id_usuario');
+        return $this->hasMany(User::class, 'id_usuario', 'id_usuario');
     }
     public function permissions()
     {
-        return $this->belongsToMany(Permiso::class, 'id_permiso');
+        return $this->belongsToMany(Permiso::class, 'id_permiso', 'id_permiso');
     }
 
     public function tenant()
