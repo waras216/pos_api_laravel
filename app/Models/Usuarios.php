@@ -31,5 +31,9 @@ class Usuarios extends Authenticatable
     {
         return $this->belongsToMany(Rol::class, 'id_rol', 'id_rol');
     }
+        public function oportunidades()
+    {
+        return $this->hasMany(Oportunidad::class, 'id_usuario', 'id_usuario');
+    }
 
 }

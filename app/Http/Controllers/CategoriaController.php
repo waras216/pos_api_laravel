@@ -38,9 +38,13 @@ class CategoriaController extends Controller
     /**
      * Display the specified resource.
      */
-    public function show(string $id)
+    public function show(Request $request,string $id)
     {
-        //
+           return response()->json(
+        Categoria::where('id_categoria', $id)
+            ->where('id_tenant', $request->user()->id_tenant)
+            ->firstOrFail()
+        );
     }
 
     /**
@@ -48,7 +52,9 @@ class CategoriaController extends Controller
      */
     public function update(Request $request, string $id)
     {
-        $categoria = Categoria::findOrFail($id);
+        $categoria =  Categoria::where('id_categoria', $id)
+        ->where('id_tenant', $request->user()->id_tenant)
+        ->firstOrFail();
 
         $data = $request->validate([
             'nombre' => 'sometimes|string|max:100',
@@ -64,9 +70,11 @@ class CategoriaController extends Controller
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(string $id)
+    public function destroy(Request $request,string $id)
     {
-        $categoria = Categoria::findOrFail($id);
+        $categoria = Categoria::where('id_categoria', $id)
+        ->where('id_tenant', $request->user()->id_tenant)
+        ->firstOrFail();
         $categoria->delete();
 
         return response()->json(['message' => 'Categoria eliminada']);

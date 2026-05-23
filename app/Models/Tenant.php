@@ -38,4 +38,7 @@
         public function usuarios(){
             return $this->hasMany(Usuarios::class, 'id_tenant', 'id_tenant');
         }
+          public function clientes(){
+            return $this->hasMany(Cliente::class, 'id_tenant', 'id_tenant');
+        }
     }

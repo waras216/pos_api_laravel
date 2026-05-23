@@ -10,7 +10,7 @@ class Categoria extends Model
 {
     use SoftDeletes;
     protected $table = 'categorias';
-    protected $id_primaryKey = 'id_categoria';
+    protected $primaryKey = 'id_categoria';
 
     protected $fillable = [
         'id_tenant',

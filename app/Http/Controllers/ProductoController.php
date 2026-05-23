@@ -54,15 +54,16 @@ class ProductoController extends Controller
      */
     public function update(Request $request, string $id)
     {
-        $producto = Producto::where('id_tenant', $request->user()->id_tenant)
-        ->findOrFail($id);
+        $producto = Producto::where('id_productos', $id)
+        ->where('id_tenant', $request->user()->id_tenant)
+        ->firstOrFail();
 
         $data = $request->validate([
-            'id_categorias' => 'required|exists:categorias,id_categoria',
-            'nombre' => 'required|string|max:200',
+            'id_categorias' => 'sometimes|exists:categorias,id_categoria',
+            'nombre' => 'sometimes|string|max:200',
             'descripcion' => 'nullable|string|max:350',
-            'precio' => 'required|numeric|min:0',
-            'stock' => 'required|integer|min:0',
+            'precio' => 'sometimes|numeric|min:0',
+            'stock' => 'sometimes|integer|min:0',
             'codigo' => 'nullable|string|max:100',
             'activo' => 'sometimes|boolean',
         ]);
@@ -77,8 +78,9 @@ class ProductoController extends Controller
      */
     public function destroy(Request $request,string $id)
     {
-        $producto = Producto::where('id_tenant', $request->user()->id_tenant)
-            ->findOrFail($id);
+        $producto = Producto::where('id_productos', $id)
+        ->where('id_tenant', $request->user()->id_tenant)
+        ->firstOrFail();
         
         $producto->delete();
 
