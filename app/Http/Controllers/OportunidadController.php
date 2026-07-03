@@ -31,13 +31,14 @@ class OportunidadController extends Controller
             'valor' => 'sometimes|numeric|min:0',
             'probabilidad' => 'sometimes|numeric|min:0',
             'estado' => 'sometimes|in:abierta,ganada,perdida',
+            'etapa' => 'sometimes|in:prospeccion,contacto,propuesta,negociacion,cierre',
             'fecha_cierre' => 'nullable|date',
         ]);
 
         $data['id_tenant'] = $request->user()->id_tenant;
         $data['id_usuario'] = $request->user()->id_usuario;
 
-        return response()->json(Oportunidad::create($data), 201);
+        return response()->json(Oportunidad::create($data)->load(['cliente', 'pipeline', 'usuario']), 201);
     }
 
     /**
@@ -69,13 +70,31 @@ class OportunidadController extends Controller
             'valor' => 'sometimes|numeric|min:0',
             'probabilidad' => 'sometimes|integer|min:0|max:100',
             'estado' => 'sometimes|in:abierta,ganada,perdida',
+            'etapa' => 'sometimes|in:prospeccion,contacto,propuesta,negociacion,cierre',
             'fecha_cierre' => 'nullable|date'
         ]);
 
-        $data['id_tenant'] = $request->user()->id_tenant;
         $oportunidad->update($data);
 
-        return response()->json($oportunidad);
+        return response()->json($oportunidad->load(['cliente', 'pipeline', 'usuario']));
+    }
+
+    /**
+     * Update only the kanban stage of the opportunity.
+     */
+    public function moverEtapa(Request $request, string $id)
+    {
+        $oportunidad = Oportunidad::where('id_oportunidad', $id)
+        ->where('id_tenant', $request->user()->id_tenant)
+        ->firstOrFail();
+
+        $data = $request->validate([
+            'etapa' => 'required|in:prospeccion,contacto,propuesta,negociacion,cierre',
+        ]);
+
+        $oportunidad->update($data);
+
+        return response()->json($oportunidad->load(['cliente', 'pipeline', 'usuario']));
     }
 
     /**

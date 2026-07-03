@@ -13,7 +13,7 @@ class Actividad extends Model
 
     protected $fillable = [
         'id_actividad',
-        'id_usuario',
+        'id_tenant',
         'id_usuario',
         'id_cliente',
         'id_lead',
@@ -32,14 +32,14 @@ class Actividad extends Model
     }
     public function lead()
     {
-        return $this->belongsTo(Lead::class, 'id_lead', 'id_lead');        
+        return $this->belongsTo(Lead::class, 'id_lead', 'id_lead');
     }
     public function oportunidad()
     {
-        return $this->belongsTo(Oportunidad::class, 'id_oportunidades', 'id_oportunidades');
+        return $this->belongsTo(Oportunidad::class, 'id_oportunidad', 'id_oportunidad');
     }
     public function usuario()
     {
-        return $this->belongsTo(Usuario::class, 'id_usuario', 'id_usuario');
+        return $this->belongsTo(Usuarios::class, 'id_usuario', 'id_usuario');
     }
 }

@@ -24,7 +24,8 @@ class Oportunidad extends Model
         'valor',
         'probabilidad',
         'estado',
-        'fecha_cierre',        
+        'etapa',
+        'fecha_cierre',
     ];
 
     public function cliente()
@@ -44,6 +45,6 @@ class Oportunidad extends Model
 
     public function actividades()
     {
-        return $this->hasMany(Actividad::class, 'id_actividad', 'id_actividad');
+        return $this->hasMany(Actividad::class, 'id_oportunidad', 'id_oportunidad');
     }
 }

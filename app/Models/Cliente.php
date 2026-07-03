@@ -19,10 +19,12 @@ class Cliente extends Model
         'apellido_m',
         'email',
         'telefono',
+        'empresa',
+        'sector_empresarial',
         'rfc',
         'direccion',
         'tipo',
-        'activo',        
+        'activo',
     ];
 
     public function contactos()

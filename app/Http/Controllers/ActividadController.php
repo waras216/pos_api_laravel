@@ -32,15 +32,15 @@ class ActividadController extends Controller
             'tipo' => 'required|in:llamada,reunion,email,tarea,nota',
             'titulo' => 'required|string|max:150',
             'descripcion' => 'nullable|string',
-            'estado' => 'sometimes|in:pendiente,completada,canceleda',
+            'estado' => 'sometimes|in:pendiente,completada,cancelada',
             'fecha_inicio' => 'nullable|date',
-            'fecha_fin' => 'nullable|date',        
+            'fecha_fin' => 'nullable|date',
         ]);
 
         $data['id_tenant'] = $request->user()->id_tenant;
         $data['id_usuario'] = $request->user()->id_usuario;
 
-        return response()->json(Actividad::create($data),201);
+        return response()->json(Actividad::create($data)->load(['cliente', 'lead', 'oportunidad', 'usuario']),201);
     }
 
     /**
@@ -66,19 +66,19 @@ class ActividadController extends Controller
         ->firstOrFail();
 
         $data = $request->validate([
-            'id_cliente' => 'nullable|exists:clientes, id_cliente',
+            'id_cliente' => 'nullable|exists:clientes,id_cliente',
             'id_lead' => 'nullable|exists:leads,id_lead',
             'id_oportunidad' => 'nullable|exists:oportunidades,id_oportunidad',
-            'tipo' => 'required|in:llamada,reunion,email,tarea,nota',
-            'titulo' => 'required|string|max:150',
+            'tipo' => 'sometimes|in:llamada,reunion,email,tarea,nota',
+            'titulo' => 'sometimes|string|max:150',
             'descripcion' => 'nullable|string',
-            'estado' => 'sometimes|in:pendiente,completada,canceleda',
+            'estado' => 'sometimes|in:pendiente,completada,cancelada',
             'fecha_inicio' => 'nullable|date',
-            'fecha_fin' => 'nullable|date',        
+            'fecha_fin' => 'nullable|date',
         ]);
 
         $actividad->update($data);
-        return response()->json($actividad);
+        return response()->json($actividad->load(['cliente', 'lead', 'oportunidad', 'usuario']));
     }
 
     /**
