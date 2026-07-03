@@ -18,6 +18,20 @@
             'estado',
             'id_tiponegocio',
             'id_plan',
+            'moneda',
+            'modulo_crm',
+            'modulo_pos',
+            'modulo_erp',
+            'datos_nicho',
+            'onboarding_completado',
+        ];
+
+        protected $casts = [
+            'modulo_crm' => 'boolean',
+            'modulo_pos' => 'boolean',
+            'modulo_erp' => 'boolean',
+            'datos_nicho' => 'array',
+            'onboarding_completado' => 'boolean',
         ];
 
         public function negocio():BelongsTo

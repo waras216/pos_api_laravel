@@ -27,6 +27,10 @@ class Usuarios extends Authenticatable
     {
         return $this->belongsTo(Usuarios::class, 'id_tenant', 'id_tenant');
     }
+    public function tenant()
+    {
+        return $this->belongsTo(Tenant::class, 'id_tenant', 'id_tenant');
+    }
     public function roles()
     {
         return $this->belongsToMany(Rol::class, 'id_rol', 'id_rol');

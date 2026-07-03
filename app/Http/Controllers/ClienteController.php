@@ -12,10 +12,19 @@ class ClienteController extends Controller
      */
     public function index(Request $request)
     {
-        return response()->json(
-            Cliente::where('id_tenant', $request->user()->id_tenant)
-            ->get()
-        );
+        $cliente = Cliente::where('id_tenant', $request->user()->id_tenant);
+
+        $cliente->when($request->filled('search'), function ($q) use ($request) {
+            $q->where('nombre', 'like', '%' . $request->search . '%');
+        });
+
+        $cliente->when($request->filled('tipo') && $request->tipo !== 'todos', function ($q) use ($request) {
+            $q->where('tipo', $request->tipo);
+        });
+
+        $cliente->latest('id_cliente');
+
+        return response()->json($cliente->paginate(15));
     }
 
     /**
@@ -48,7 +57,7 @@ class ClienteController extends Controller
         return response()->json(
             Cliente::where('id_cliente', $id)
                 ->where('id_tenant', $request->user()->id_tenant)
-                ->with(['contactos', 'leads', 'oportunidades'])
+                ->with(['contactos', 'leads', 'oportunidades', 'actividades'])
                 ->firstOrFail()
         );
     }
@@ -74,7 +83,7 @@ class ClienteController extends Controller
             'direccion' => 'nullable|string',
             'tipo'  => 'sometimes|in:persona,empresa',
             'activo' => 'sometimes|boolean',
-        ]);            
+        ]);
 
         $cliente->update($data);
         return response()->json($cliente);

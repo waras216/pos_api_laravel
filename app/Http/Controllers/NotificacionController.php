@@ -36,7 +36,6 @@ class NotificacionController extends Controller
         $data['id_tenant'] = $request->user()->id_tenant;
         $data['id_usuario'] = $request->user()->id_usuario;
         $data['leida'] = false;
-        $data['fecha_envio'] = now();
 
         $notificacion = Notificacion::create($data);
 
@@ -60,7 +59,7 @@ class NotificacionController extends Controller
      */
     public function update(Request $request, string $id)
     {
-        $notificacion = Notificacion::where('id_notificacion', $id)
+        $notificacion = Notificacion::where('id_notificacion',$id)
         ->where('id_usuario', $request->user()->id_usuario)
         ->firstOrFail();
 
@@ -88,10 +87,10 @@ class NotificacionController extends Controller
 
         $notificacion->delete();
         
-        return response()->json(['message' => 'Notificación eliminada']);
+        return response()->json(['message' => 'Notificacion eliminada']);
     }
 
-    public function marcaLeida(Request $request, string $id)
+    public function marcarLeida(Request $request, string $id)
     {
         $notificacion = Notificacion::where('id_notificacion',$id)
         ->where('id_usuario', $request->user()->id_usuario)
@@ -103,7 +102,7 @@ class NotificacionController extends Controller
 
     public function marcarTodasLeidas(Request $request)
     {
-        Notificacion::where('id_tenat', $request->user()->id_tenant)
+        Notificacion::where('id_tenant', $request->user()->id_tenant)
             ->where('id_usuario', $request->user()->id_usuario)
             ->where('leida', false)
             ->update(['leida' => true]);

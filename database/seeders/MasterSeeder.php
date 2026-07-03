@@ -10,12 +10,20 @@ class MasterSeeder extends Seeder
 {
     public function run(): void
     {
-        // Negocios
-        DB::table('negocios')->insert([
-            ['nombre_negocio' => 'Restaurante', 'created_at' => now(), 'updated_at' => now()],
-            ['nombre_negocio' => 'Tienda',      'created_at' => now(), 'updated_at' => now()],
-            ['nombre_negocio' => 'Cafetería',   'created_at' => now(), 'updated_at' => now()],
-        ]);
+        // Negocios (los 6 nichos reales del onboarding, mapeados por slug)
+        foreach ([
+            ['slug' => 'hotel',       'nombre_negocio' => 'Hotel'],
+            ['slug' => 'restaurante', 'nombre_negocio' => 'Restaurante'],
+            ['slug' => 'almacen',     'nombre_negocio' => 'Almacén / Bodega'],
+            ['slug' => 'farmacia',    'nombre_negocio' => 'Farmacia'],
+            ['slug' => 'startup',     'nombre_negocio' => 'Startup'],
+            ['slug' => 'tienda',      'nombre_negocio' => 'Tienda / Retail'],
+        ] as $negocio) {
+            DB::table('negocios')->updateOrInsert(
+                ['slug' => $negocio['slug']],
+                ['nombre_negocio' => $negocio['nombre_negocio'], 'updated_at' => now(), 'created_at' => now()]
+            );
+        }
 
         // Plans
         DB::table('plans')->insert([
@@ -51,7 +59,7 @@ class MasterSeeder extends Seeder
                 'nombre_tenant'  => 'Demo Company',
                 'subdominio'     => 'demo',
                 'estado'         => 'activo',
-                'id_tiponegocio' => 1,
+                'id_tiponegocio' => null,
                 'id_plan'        => 1,
                 'created_at'     => now(),
                 'updated_at'     => now(),

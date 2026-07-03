@@ -13,6 +13,7 @@ class Negocio extends Model
 
     protected $fillable = [
         'nombre_negocio',
+        'slug',
     ];
 
         public function tenants()

@@ -30,7 +30,7 @@ class AuthController extends Controller
         $token = $user->createToken('api_token')->plainTextToken;
 
         return response()->json([
-            'user' => $user,
+            'user' => $this->serializeUser($user),
             'token' => $token
         ]);
     }
@@ -46,7 +46,7 @@ class AuthController extends Controller
             'nombre_tenant' => $data['nombre'] . ' Company',
             'subdominio' => Str::slug($data['nombre']) . '-' . Str::random(6),
             'estado' => 'activo',
-            'id_tiponegocio' => 1,
+            'onboarding_completado' => false,
             'id_plan' => 1,
         ]);
 
@@ -77,16 +77,50 @@ class AuthController extends Controller
         $token = $user->createToken('api_token')->plainTextToken;
 
         return response()->json([
-            'user' => $user,
+            'user' => $this->serializeUser($user),
             'token' => $token,
         ],201);
     }
 
+    public function me(Request $request)
+    {
+        return response()->json($this->serializeUser($request->user()));
+    }
+
     public function logout(Request $request){
         $request->user()->currentAccessToken()->delete();
-        
+
         return response()->json([
             'message' => 'Sesion cerrada'
         ]);
+    }
+
+    private function serializeUser(Usuarios $user): array
+    {
+        $user->loadMissing('tenant.negocio');
+        $tenant = $user->tenant;
+
+        $nichoData = null;
+        if ($tenant && $tenant->onboarding_completado) {
+            $nichoData = array_merge([
+                'nicho' => optional($tenant->negocio)->slug,
+                'moneda' => $tenant->moneda,
+                'modulos' => [
+                    'crm' => (bool) $tenant->modulo_crm,
+                    'pos' => (bool) $tenant->modulo_pos,
+                    'erp' => (bool) $tenant->modulo_erp,
+                ],
+            ], $tenant->datos_nicho ?? []);
+        }
+
+        return [
+            'id_usuario' => $user->id_usuario,
+            'id_tenant' => $user->id_tenant,
+            'nombre' => $user->nombre,
+            'email' => $user->email,
+            'empresa' => $tenant?->nombre_tenant,
+            'onboardingCompleto' => (bool) $tenant?->onboarding_completado,
+            'nichoData' => $nichoData,
+        ];
     }
 }

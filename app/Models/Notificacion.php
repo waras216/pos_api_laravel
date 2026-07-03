@@ -11,7 +11,8 @@ class Notificacion extends Model
 
     protected $fillable = [
         'id_tenant',
-        'id_usaurio',
+        'id_usuario',
+        'id_cliente',
         'titulo',
         'mensaje',
         'tipo',
@@ -21,6 +22,6 @@ class Notificacion extends Model
 
     public function usuario()
     {
-        return $this->belongsTo(Usuario::class, 'id_usuario', 'id_usuario');
+        return $this->belongsTo(Usuarios::class, 'id_usuario', 'id_usuario');
     }
 }

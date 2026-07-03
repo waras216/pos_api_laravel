@@ -2,8 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Actividad;
+use App\Models\Notificacion;
 use App\Models\Oportunidad;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class OportunidadController extends Controller
 {
@@ -80,21 +83,72 @@ class OportunidadController extends Controller
     }
 
     /**
-     * Update only the kanban stage of the opportunity.
+     * Update only the kanban stage of the opportunity. Moving into 'cierre'
+     * requires an explicit estado (ganada/perdida) and triggers a real
+     * side effect: an audit Actividad and a Notificacion for the deal owner.
+     * Moving away from 'cierre' reopens the deal (estado back to abierta).
      */
     public function moverEtapa(Request $request, string $id)
     {
-        $oportunidad = Oportunidad::where('id_oportunidad', $id)
-        ->where('id_tenant', $request->user()->id_tenant)
-        ->firstOrFail();
-
         $data = $request->validate([
             'etapa' => 'required|in:prospeccion,contacto,propuesta,negociacion,cierre',
+            'estado' => 'nullable|in:abierta,ganada,perdida',
         ]);
 
-        $oportunidad->update($data);
+        if ($data['etapa'] === 'cierre' && !in_array($data['estado'] ?? null, ['ganada', 'perdida'], true)) {
+            abort(422, 'Para mover a Cierre debes indicar si la oportunidad fue ganada o perdida.');
+        }
 
-        return response()->json($oportunidad->load(['cliente', 'pipeline', 'usuario']));
+        return DB::transaction(function () use ($request, $id, $data) {
+            $oportunidad = Oportunidad::where('id_oportunidad', $id)
+                ->where('id_tenant', $request->user()->id_tenant)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            if ($data['etapa'] === 'cierre') {
+                $oportunidad->update([
+                    'etapa' => 'cierre',
+                    'estado' => $data['estado'],
+                    'fecha_cierre' => now(),
+                ]);
+
+                $gano = $data['estado'] === 'ganada';
+
+                Actividad::create([
+                    'id_tenant' => $request->user()->id_tenant,
+                    'id_usuario' => $oportunidad->id_usuario,
+                    'id_cliente' => $oportunidad->id_cliente,
+                    'id_oportunidad' => $oportunidad->id_oportunidad,
+                    'tipo' => 'nota',
+                    'titulo' => $gano ? 'Oportunidad ganada' : 'Oportunidad perdida',
+                    'estado' => 'completada',
+                ]);
+
+                Notificacion::create([
+                    'id_tenant' => $request->user()->id_tenant,
+                    'id_usuario' => $oportunidad->id_usuario,
+                    'id_cliente' => $oportunidad->id_cliente,
+                    'titulo' => $gano ? '🎉 Oportunidad ganada' : 'Oportunidad perdida',
+                    'mensaje' => sprintf(
+                        '"%s" con %s por $%s fue marcada como %s.',
+                        $oportunidad->titulo,
+                        $oportunidad->cliente->nombre ?? 'cliente',
+                        number_format((float) $oportunidad->valor, 2),
+                        $gano ? 'ganada' : 'perdida'
+                    ),
+                    'tipo' => $gano ? 'success' : 'warning',
+                    'url' => '/crm/oportunidades',
+                ]);
+            } else {
+                $oportunidad->update([
+                    'etapa' => $data['etapa'],
+                    'estado' => 'abierta',
+                    'fecha_cierre' => null,
+                ]);
+            }
+
+            return response()->json($oportunidad->load(['cliente', 'pipeline', 'usuario']));
+        });
     }
 
     /**

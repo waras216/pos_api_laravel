@@ -15,6 +15,7 @@ use App\Http\Controllers\NotificacionController;
 use App\Http\Controllers\CampanaController;
 use App\Http\Controllers\AutomatizacionController;
 use App\Http\Controllers\IntegracionController;
+use App\Http\Controllers\TenantController;
 use Symfony\Component\Routing\RouterInterface;
 
  Route::post('/login',[AuthController::class, 'login']);
@@ -22,9 +23,10 @@ use Symfony\Component\Routing\RouterInterface;
 
  Route::middleware('auth:sanctum')->group(function(){
     Route::post('logout', [AuthController::class, 'logout']);
-    Route::get('/user', function(Request $request){
-      return $request->user();
-    });
+    Route::get('/user', [AuthController::class, 'me']);
+
+    Route::get('tenant', [TenantController::class, 'show']);
+    Route::post('tenant/onboarding', [TenantController::class, 'completeOnboarding']);
 
     Route::apiResource('categorias', CategoriaController::class);
     Route::apiResource('productos', ProductoController::class);
@@ -33,6 +35,7 @@ use Symfony\Component\Routing\RouterInterface;
     Route::apiResource('clientes', ClienteController::class);
     Route::apiResource('contactos', ContactoController::class);
     Route::apiResource('leads', LeadController::class);
+    Route::post('leads/{id}/convertir', [LeadController::class, 'convertir']);
     Route::apiResource('pipelines', PipelineController::class);
     Route::apiResource('oportunidades', OportunidadController::class);
     Route::patch('oportunidades/{id}/etapa', [OportunidadController::class, 'moverEtapa']);
