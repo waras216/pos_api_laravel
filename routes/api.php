@@ -16,6 +16,16 @@ use App\Http\Controllers\CampanaController;
 use App\Http\Controllers\AutomatizacionController;
 use App\Http\Controllers\IntegracionController;
 use App\Http\Controllers\TenantController;
+use App\Http\Controllers\Erp\InventarioController;
+use App\Http\Controllers\Erp\OrdenCompraController;
+use App\Http\Controllers\Erp\MovimientoController;
+use App\Http\Controllers\Erp\PedidoController;
+use App\Http\Controllers\Erp\EmpleadoController;
+use App\Http\Controllers\Erp\OrdenProduccionController;
+use App\Http\Controllers\Erp\EnvioController;
+use App\Http\Controllers\Erp\ProyectoController;
+use App\Http\Controllers\Erp\CrmResumenController;
+use App\Http\Controllers\Erp\DashboardController as ErpDashboardController;
 use Symfony\Component\Routing\RouterInterface;
 
  Route::post('/login',[AuthController::class, 'login']);
@@ -58,4 +68,25 @@ use Symfony\Component\Routing\RouterInterface;
     // Integraciones
     Route::get('integraciones', [IntegracionController::class, 'index']);
     Route::patch('integraciones/{id}/toggle', [IntegracionController::class, 'toggle']);
+
+    // ERP
+    Route::prefix('erp')->group(function () {
+        Route::apiResource('inventario', InventarioController::class);
+
+        Route::apiResource('compras', OrdenCompraController::class)->except(['update']);
+        Route::patch('compras/{id}/recibir', [OrdenCompraController::class, 'recibir']);
+        Route::patch('compras/{id}/cancelar', [OrdenCompraController::class, 'cancelar']);
+
+        Route::apiResource('finanzas', MovimientoController::class)->except(['update']);
+        Route::apiResource('ventas', PedidoController::class);
+        Route::apiResource('rrhh', EmpleadoController::class);
+        Route::apiResource('fabricacion', OrdenProduccionController::class);
+        Route::apiResource('scm', EnvioController::class);
+        Route::apiResource('proyectos', ProyectoController::class);
+
+        Route::get('crm/resumen', [CrmResumenController::class, 'resumen']);
+        Route::get('crm/interacciones', [CrmResumenController::class, 'interacciones']);
+
+        Route::get('dashboard/resumen', [ErpDashboardController::class, 'resumen']);
+    });
  });
