@@ -12,10 +12,18 @@ class Permiso extends Model
     protected $primaryKey = 'id_permiso';
 
     protected $fillable = [
-        'nombre_permiso'
+        'clave',
+        'id_modulo',
+        'descripcion',
     ];
+
+    public function modulo()
+    {
+        return $this->belongsTo(Modulo::class, 'id_modulo', 'id_modulo');
+    }
+
     public function roles()
     {
-        return $this->belongsToMany(Rol::class, 'id_rol');
+        return $this->belongsToMany(Rol::class, 'rol_permiso', 'id_permiso', 'id_rol');
     }
 }

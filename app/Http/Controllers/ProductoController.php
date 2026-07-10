@@ -28,8 +28,10 @@ class ProductoController extends Controller
             'nombre' => 'required|string|max:200',
             'descripcion' => 'nullable|string|max:350',
             'precio' => 'required|numeric|min:0',
+            'precio_compra' => 'nullable|numeric|min:0',
             'stock' => 'required|integer|min:0',
-            'codigo' => 'nullable|string|max:100',
+            'stock_minimo' => 'nullable|integer|min:0',
+            'sku' => 'nullable|string|max:100',
         ]);
 
         $data['id_tenant'] = $request->user()->id_tenant;
@@ -63,8 +65,10 @@ class ProductoController extends Controller
             'nombre' => 'sometimes|string|max:200',
             'descripcion' => 'nullable|string|max:350',
             'precio' => 'sometimes|numeric|min:0',
+            'precio_compra' => 'sometimes|numeric|min:0',
             'stock' => 'sometimes|integer|min:0',
-            'codigo' => 'nullable|string|max:100',
+            'stock_minimo' => 'sometimes|integer|min:0',
+            'sku' => 'nullable|string|max:100',
             'activo' => 'sometimes|boolean',
         ]);
 

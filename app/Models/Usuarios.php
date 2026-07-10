@@ -8,6 +8,14 @@ use Laravel\Sanctum\HasApiTokens;
 
 class Usuarios extends Authenticatable
 {
+    // Sanctum sigue siendo la autenticación real de las rutas de negocio
+    // (auth:sanctum). Passport (auth:api-oauth, Fase 3) convive detrás del
+    // mismo trait: Sanctum::withAccessToken()/currentAccessToken() no
+    // validan de qué guard viene el token, solo lo guardan -- eso es lo
+    // único que el TokenGuard de Passport necesita del modelo. Agregar
+    // Passport\HasApiTokens acá es imposible: ambos traits declaran la
+    // propiedad $accessToken con firmas distintas, y PHP no permite
+    // resolver choques de propiedades entre traits (solo de métodos).
     use HasFactory, HasApiTokens;
 
     protected $primaryKey = 'id_usuario';
@@ -30,10 +38,6 @@ class Usuarios extends Authenticatable
     public function tenant()
     {
         return $this->belongsTo(Tenant::class, 'id_tenant', 'id_tenant');
-    }
-    public function roles()
-    {
-        return $this->belongsToMany(Rol::class, 'id_rol', 'id_rol');
     }
         public function oportunidades()
     {

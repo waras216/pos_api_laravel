@@ -47,4 +47,22 @@ class MovimientoController extends Controller
 
         return response()->json(['message' => 'Movimiento eliminado']);
     }
+
+    public function papelera(Request $request)
+    {
+        return response()->json(
+            Movimiento::onlyTrashed()
+                ->where('id_tenant', $request->user()->id_tenant)
+                ->latest('deleted_at')
+                ->get()
+        );
+    }
+
+    public function restaurar(Request $request, string $id)
+    {
+        $mov = Movimiento::onlyTrashed()->where('id_tenant', $request->user()->id_tenant)->findOrFail($id);
+        $mov->restore();
+
+        return response()->json($mov);
+    }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Models\Erp;
 
+use App\Models\Cliente;
 use Illuminate\Database\Eloquent\Model;
 
 class Pedido extends Model
@@ -10,7 +11,7 @@ class Pedido extends Model
 
     protected $fillable = [
         'id_tenant',
-        'cliente',
+        'id_cliente',
         'total',
         'estado',
         'fecha',
@@ -19,4 +20,14 @@ class Pedido extends Model
     protected $casts = [
         'total' => 'float',
     ];
+
+    public function cliente()
+    {
+        return $this->belongsTo(Cliente::class, 'id_cliente', 'id_cliente');
+    }
+
+    public function items()
+    {
+        return $this->hasMany(PedidoItem::class, 'id_pedido');
+    }
 }

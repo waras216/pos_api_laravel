@@ -40,12 +40,20 @@ return [
     'guards' => [
         'web' => [
             'driver' => 'session',
-            'provider' => 'users',
+            // No hay ninguna feature de la app usando el guard 'web' con el
+            // provider 'users' (User.php es el modelo legacy/no usado, ver
+            // CLAUDE.md). Passport SÍ lo necesita: /oauth/authorize resuelve
+            // el usuario vía este guard, así que lo apuntamos a Usuarios.
+            'provider' => 'usuarios',
         ],
         'api' => [
             'driver' => 'sanctum',
-            'provider' => 'usuarios',            
-        ]
+            'provider' => 'usuarios',
+        ],
+        'api-oauth' => [
+            'driver' => 'passport',
+            'provider' => 'usuarios',
+        ],
     ],
 
     /*

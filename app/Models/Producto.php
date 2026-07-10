@@ -19,13 +19,15 @@ class Producto extends Model
         'nombre',
         'descripcion',
         'precio',
+        'precio_compra',
         'stock',
-        'codigo_barras',
+        'stock_minimo',
+        'sku',
         'activo'
     ];
 
     public function categoria(){
-        return $this->belongsTo(Categoria::class, 'id_categoria', 'id_categoria');
+        return $this->belongsTo(Categoria::class, 'id_categorias', 'id_categoria');
     }
     
     public function resolveRouteBinding($value, $field = null)

@@ -52,6 +52,13 @@
         public function usuarios(){
             return $this->hasMany(Usuarios::class, 'id_tenant', 'id_tenant');
         }
+        public function membresias(){
+            return $this->hasMany(Membresia::class, 'id_tenant', 'id_tenant');
+        }
+        public function miembros(){
+            return $this->belongsToMany(Usuarios::class, 'membresias', 'id_tenant', 'id_usuario')
+                ->wherePivot('estado', 'activa');
+        }
           public function clientes(){
             return $this->hasMany(Cliente::class, 'id_tenant', 'id_tenant');
         }

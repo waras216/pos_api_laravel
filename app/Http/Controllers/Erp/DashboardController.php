@@ -5,12 +5,12 @@ namespace App\Http\Controllers\Erp;
 use App\Http\Controllers\Controller;
 use App\Models\Erp\Empleado;
 use App\Models\Erp\Envio;
-use App\Models\Erp\Inventario;
 use App\Models\Erp\Movimiento;
 use App\Models\Erp\OrdenCompra;
 use App\Models\Erp\OrdenProduccion;
 use App\Models\Erp\Pedido;
 use App\Models\Erp\Proyecto;
+use App\Models\Producto;
 use Illuminate\Http\Request;
 
 class DashboardController extends Controller
@@ -19,16 +19,16 @@ class DashboardController extends Controller
     {
         $idTenant = $request->user()->id_tenant;
 
-        $inventario = Inventario::where('id_tenant', $idTenant)->get();
-        $compras = OrdenCompra::where('id_tenant', $idTenant)->get();
+        $inventario = Producto::where('id_tenant', $idTenant)->get();
+        $compras = OrdenCompra::where('id_tenant', $idTenant)->with('proveedor')->get();
         $movimientos = Movimiento::where('id_tenant', $idTenant)->get();
-        $ventas = Pedido::where('id_tenant', $idTenant)->get();
+        $ventas = Pedido::where('id_tenant', $idTenant)->with('cliente')->get();
         $empleados = Empleado::where('id_tenant', $idTenant)->get();
         $produccion = OrdenProduccion::where('id_tenant', $idTenant)->get();
         $envios = Envio::where('id_tenant', $idTenant)->get();
         $proyectos = Proyecto::where('id_tenant', $idTenant)->get();
 
-        $valorInventario = $inventario->sum(fn ($p) => $p->precio_venta * $p->stock);
+        $valorInventario = $inventario->sum(fn ($p) => $p->precio * $p->stock);
         $comprasPendientes = $compras->where('estado', 'pendiente');
         $ingresosMes = $movimientos->where('tipo', 'ingreso')
             ->filter(fn ($m) => \Illuminate\Support\Carbon::parse($m->fecha)->isCurrentMonth())
@@ -66,9 +66,9 @@ class DashboardController extends Controller
 
         $actividad = collect()
             ->concat($inventario->map(fn ($i) => ['texto' => "Producto agregado a inventario: {$i->nombre}", 'dot' => 'bg-amber-400', 'ts' => $i->created_at]))
-            ->concat($compras->map(fn ($o) => ['texto' => "Orden de compra a {$o->proveedor} por \$" . number_format($o->total, 0), 'dot' => 'bg-blue-400', 'ts' => $o->created_at]))
+            ->concat($compras->map(fn ($o) => ['texto' => "Orden de compra a {$o->proveedor?->nombre} por \$" . number_format($o->total, 0), 'dot' => 'bg-blue-400', 'ts' => $o->created_at]))
             ->concat($movimientos->map(fn ($m) => ['texto' => ($m->tipo === 'ingreso' ? 'Ingreso registrado: ' : 'Egreso registrado: ') . $m->concepto, 'dot' => $m->tipo === 'ingreso' ? 'bg-emerald-400' : 'bg-red-400', 'ts' => $m->created_at]))
-            ->concat($ventas->map(fn ($v) => ['texto' => "Pedido de venta para {$v->cliente} por \$" . number_format($v->total, 0), 'dot' => 'bg-blue-400', 'ts' => $v->created_at]))
+            ->concat($ventas->map(fn ($v) => ['texto' => "Pedido de venta para {$v->cliente?->nombre} por \$" . number_format($v->total, 0), 'dot' => 'bg-blue-400', 'ts' => $v->created_at]))
             ->concat($empleados->map(fn ($e) => ['texto' => "Nuevo empleado: {$e->nombre} ({$e->puesto})", 'dot' => 'bg-purple-400', 'ts' => $e->created_at]))
             ->concat($produccion->map(fn ($p) => ['texto' => "Orden de producción: {$p->producto} x{$p->cantidad}", 'dot' => 'bg-amber-400', 'ts' => $p->created_at]))
             ->concat($envios->map(fn ($e) => ['texto' => "Envío a {$e->destino} vía {$e->transportista}", 'dot' => 'bg-teal-400', 'ts' => $e->created_at]))

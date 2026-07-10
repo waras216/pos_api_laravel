@@ -3,7 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\Integracion;
+use App\Models\Membresia;
 use App\Models\Pipeline;
+use App\Models\Rol;
 use App\Models\Tenant;
 use App\Models\Usuarios;
 use Illuminate\Http\Request;
@@ -57,6 +59,16 @@ class AuthController extends Controller
             'password' => Hash::make($data['password']),
         ]);
 
+        Rol::asignarTenantAdmin($user->id_usuario, $tenant->id_tenant);
+
+        Membresia::create([
+            'id_usuario' => $user->id_usuario,
+            'id_tenant' => $tenant->id_tenant,
+            'estado' => 'activa',
+            'es_owner' => true,
+            'unido_en' => now(),
+        ]);
+
         Pipeline::create(['id_tenant' => $tenant->id_tenant, 'nombre' => 'Ventas', 'activo' => true]);
         Pipeline::create(['id_tenant' => $tenant->id_tenant, 'nombre' => 'Servicios', 'activo' => true]);
 
@@ -87,17 +99,9 @@ class AuthController extends Controller
         return response()->json($this->serializeUser($request->user()));
     }
 
-    public function logout(Request $request){
-        $request->user()->currentAccessToken()->delete();
-
-        return response()->json([
-            'message' => 'Sesion cerrada'
-        ]);
-    }
-
-    private function serializeUser(Usuarios $user): array
+    public function serializeUser(Usuarios $user): array
     {
-        $user->loadMissing('tenant.negocio');
+        $user->loadMissing('tenant.negocio', 'tenant.plan');
         $tenant = $user->tenant;
 
         $nichoData = null;
@@ -121,6 +125,22 @@ class AuthController extends Controller
             'empresa' => $tenant?->nombre_tenant,
             'onboardingCompleto' => (bool) $tenant?->onboarding_completado,
             'nichoData' => $nichoData,
+            'es_admin' => $tenant ? Rol::esAdminTenant($user->id_usuario, $tenant->id_tenant) : false,
+            'es_superadmin' => Rol::esSuperAdmin($user->id_usuario),
+            'plan' => $tenant?->plan ? [
+                'nombre_plan' => $tenant->plan->nombre_plan,
+                'max_usuarios' => $tenant->plan->max_usuarios,
+                'usuarios_actuales' => Membresia::where('id_tenant', $tenant->id_tenant)->where('estado', 'activa')->count(),
+            ] : null,
+            'membresias' => Membresia::where('membresias.id_usuario', $user->id_usuario)
+                ->where('membresias.estado', 'activa')
+                ->join('tenants', 'tenants.id_tenant', '=', 'membresias.id_tenant')
+                ->orderBy('tenants.nombre_tenant')
+                ->get([
+                    'membresias.id_tenant',
+                    'tenants.nombre_tenant as empresa',
+                    'membresias.es_owner',
+                ]),
         ];
     }
 }

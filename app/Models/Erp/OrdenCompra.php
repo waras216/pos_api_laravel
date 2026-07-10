@@ -2,6 +2,7 @@
 
 namespace App\Models\Erp;
 
+use App\Models\Proveedor;
 use Illuminate\Database\Eloquent\Model;
 
 class OrdenCompra extends Model
@@ -10,14 +11,23 @@ class OrdenCompra extends Model
 
     protected $fillable = [
         'id_tenant',
-        'proveedor',
+        'id_proveedor',
         'fecha',
         'estado',
-        'items',
         'total',
     ];
 
     protected $casts = [
         'total' => 'float',
     ];
+
+    public function proveedor()
+    {
+        return $this->belongsTo(Proveedor::class, 'id_proveedor', 'id_proveedor');
+    }
+
+    public function items()
+    {
+        return $this->hasMany(OrdenCompraItem::class, 'id_orden_compra');
+    }
 }

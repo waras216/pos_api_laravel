@@ -61,4 +61,22 @@ class EnvioController extends Controller
 
         return response()->json(['message' => 'Envio eliminado']);
     }
+
+    public function papelera(Request $request)
+    {
+        return response()->json(
+            Envio::onlyTrashed()
+                ->where('id_tenant', $request->user()->id_tenant)
+                ->latest('deleted_at')
+                ->get()
+        );
+    }
+
+    public function restaurar(Request $request, string $id)
+    {
+        $envio = Envio::onlyTrashed()->where('id_tenant', $request->user()->id_tenant)->findOrFail($id);
+        $envio->restore();
+
+        return response()->json($envio);
+    }
 }
