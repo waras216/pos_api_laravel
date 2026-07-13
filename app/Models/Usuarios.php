@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 
 class Usuarios extends Authenticatable
@@ -16,7 +17,7 @@ class Usuarios extends Authenticatable
     // Passport\HasApiTokens acá es imposible: ambos traits declaran la
     // propiedad $accessToken con firmas distintas, y PHP no permite
     // resolver choques de propiedades entre traits (solo de métodos).
-    use HasFactory, HasApiTokens;
+    use HasFactory, HasApiTokens, Notifiable;
 
     protected $primaryKey = 'id_usuario';
 

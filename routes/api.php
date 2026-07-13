@@ -35,6 +35,8 @@ use Symfony\Component\Routing\RouterInterface;
 
  Route::post('/login',[AuthController::class, 'login']);
  Route::post('/register',[AuthController::class, 'register']);
+ Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
+ Route::post('/reset-password', [AuthController::class, 'resetPassword']);
 
  // Authorization Code + PKCE (Fase 3, ver §06). /oauth/authorize y la mitad
  // "cruda" de /oauth/token los registra Passport solo; estos son la capa
@@ -58,10 +60,13 @@ use Symfony\Component\Routing\RouterInterface;
      ]);
  });
 
- // Cutover Fase 3: estas rutas de negocio ya validan contra Passport
- // (auth:api-oauth), no contra Sanctum. logout vive en /auth/oauth-logout
- // (necesita revoke(), no delete() -- son objetos de token distintos).
- Route::middleware('auth:api-oauth')->group(function(){
+ // Revertido temporalmente a Sanctum (2026-07-13): el cutover a Passport
+ // (auth:api-oauth) de la Fase 3 dejaba 401 a todas las rutas de negocio
+ // porque el frontend sigue logueando via AuthController::login, que emite
+ // un token Sanctum, no Passport. Las rutas /auth/web-session, /auth/token,
+ // /auth/refresh y /oauth/whoami de arriba quedan intactas para retomar
+ // la migración cuando el frontend implemente el flujo OAuth2 PKCE.
+ Route::middleware('auth:sanctum')->group(function(){
     Route::get('/user', [AuthController::class, 'me']);
 
     Route::get('tenant', [TenantController::class, 'show']);

@@ -8,9 +8,11 @@ use App\Models\Pipeline;
 use App\Models\Rol;
 use App\Models\Tenant;
 use App\Models\Usuarios;
+use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Str;
 
 class AuthController extends Controller
@@ -92,6 +94,56 @@ class AuthController extends Controller
             'user' => $this->serializeUser($user),
             'token' => $token,
         ],201);
+    }
+
+    public function forgotPassword(Request $request)
+    {
+        $request->validate([
+            'email' => 'required|email',
+        ]);
+
+        $status = Password::broker('usuarios')->sendResetLink(
+            $request->only('email')
+        );
+
+        if ($status !== Password::RESET_LINK_SENT) {
+            return response()->json([
+                'message' => 'No pudimos enviar el enlace de recuperación',
+            ], 400);
+        }
+
+        return response()->json([
+            'message' => 'Te enviamos un enlace de recuperación a tu correo',
+        ]);
+    }
+
+    public function resetPassword(Request $request)
+    {
+        $data = $request->validate([
+            'email' => 'required|email',
+            'token' => 'required',
+            'password' => 'required|min:6|confirmed',
+        ]);
+
+        $status = Password::broker('usuarios')->reset(
+            $data,
+            function (Usuarios $user, string $password) {
+                $user->password = Hash::make($password);
+                $user->save();
+
+                event(new PasswordReset($user));
+            }
+        );
+
+        if ($status !== Password::PASSWORD_RESET) {
+            return response()->json([
+                'message' => 'El enlace de recuperación es inválido o expiró',
+            ], 400);
+        }
+
+        return response()->json([
+            'message' => 'Contraseña actualizada correctamente',
+        ]);
     }
 
     public function me(Request $request)

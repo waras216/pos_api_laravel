@@ -54,6 +54,10 @@ return [
 
     'url' => env('APP_URL', 'http://localhost'),
 
+    // URL de la SPA Angular -- usada para construir el link de reset-password
+    // que se envía por email (no hay vista Blade, el link apunta al frontend).
+    'frontend_url' => env('FRONTEND_URL', 'http://localhost:4200'),
+
     /*
     |--------------------------------------------------------------------------
     | Application Timezone
