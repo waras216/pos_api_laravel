@@ -17,7 +17,10 @@ use App\Http\Controllers\AutomatizacionController;
 use App\Http\Controllers\IntegracionController;
 use App\Http\Controllers\TenantController;
 use App\Http\Controllers\UsuarioController;
+use App\Http\Controllers\RolController;
+use App\Http\Controllers\PermisoController;
 use App\Http\Controllers\PlanController;
+use App\Http\Controllers\EmpresaController;
 use App\Http\Controllers\MembresiaController;
 use App\Http\Controllers\PassportAuthController;
 use App\Http\Controllers\Erp\InventarioController;
@@ -29,9 +32,35 @@ use App\Http\Controllers\Erp\EmpleadoController;
 use App\Http\Controllers\Erp\OrdenProduccionController;
 use App\Http\Controllers\Erp\EnvioController;
 use App\Http\Controllers\Erp\ProyectoController;
+use App\Http\Controllers\Erp\ProyectoTareaController;
+use App\Http\Controllers\Erp\ProyectoHoraController;
 use App\Http\Controllers\Erp\CrmResumenController;
 use App\Http\Controllers\Erp\DashboardController as ErpDashboardController;
+use App\Http\Controllers\Erp\ReporteController as ErpReporteController;
 use Symfony\Component\Routing\RouterInterface;
+
+// Gatea un apiResource completo (incluyendo index/show) por permiso granular
+// "{recurso}.ver|crear|editar|eliminar". Usar solo para recursos sensibles
+// (erp/finanzas, erp/rrhh) — el resto usa permisoResourceSinVer para no
+// romper dropdowns de otras pantallas que dependen de leer este recurso.
+Route::macro('permisoResource', function (string $uri, string $controller, string $recurso) {
+    return Route::apiResource($uri, $controller)
+        ->middlewareFor(['index', 'show'], "permiso:{$recurso}.ver")
+        ->middlewareFor('store', "permiso:{$recurso}.crear")
+        ->middlewareFor('update', "permiso:{$recurso}.editar")
+        ->middlewareFor('destroy', "permiso:{$recurso}.eliminar");
+});
+
+// Igual que permisoResource pero sin gatear index/show (fase 1: solo se
+// restringe crear/editar/eliminar; "ver" queda abierto a cualquier miembro
+// del tenant hasta que exista un editor de roles con dependencias entre
+// permisos, para no romper formularios que leen otros recursos).
+Route::macro('permisoResourceSinVer', function (string $uri, string $controller, string $recurso) {
+    return Route::apiResource($uri, $controller)
+        ->middlewareFor('store', "permiso:{$recurso}.crear")
+        ->middlewareFor('update', "permiso:{$recurso}.editar")
+        ->middlewareFor('destroy', "permiso:{$recurso}.eliminar");
+});
 
  Route::post('/login',[AuthController::class, 'login']);
  Route::post('/register',[AuthController::class, 'register']);
@@ -68,6 +97,9 @@ use Symfony\Component\Routing\RouterInterface;
  // la migración cuando el frontend implemente el flujo OAuth2 PKCE.
  Route::middleware('auth:sanctum')->group(function(){
     Route::get('/user', [AuthController::class, 'me']);
+    Route::put('perfil', [AuthController::class, 'actualizarPerfil']);
+    Route::post('perfil/foto', [AuthController::class, 'actualizarFoto']);
+    Route::delete('perfil/foto', [AuthController::class, 'eliminarFoto']);
 
     Route::get('tenant', [TenantController::class, 'show']);
     Route::post('tenant/onboarding', [TenantController::class, 'completeOnboarding']);
@@ -76,81 +108,119 @@ use Symfony\Component\Routing\RouterInterface;
     Route::get('mis-empresas', [MembresiaController::class, 'index']);
     Route::post('mis-empresas/{idTenant}/activar', [MembresiaController::class, 'activar']);
 
-    // Equipo (usuarios del tenant)
-    Route::get('usuarios', [UsuarioController::class, 'index']);
-    Route::middleware('admin.tenant')->group(function () {
-        Route::post('usuarios', [UsuarioController::class, 'store']);
-        Route::put('usuarios/{id}', [UsuarioController::class, 'update']);
-        Route::delete('usuarios/{id}', [UsuarioController::class, 'destroy']);
-    });
+    // Todo lo de negocio requiere que el tenant activo del usuario no esté
+    // suspendido. /user, tenant/* y mis-empresas/* quedan fuera para que un
+    // usuario de una empresa suspendida pueda ver su sesión y cambiarse a
+    // otra empresa suya que sí esté activa.
+    Route::middleware('tenant.activo')->group(function () {
+        // Equipo (usuarios del tenant)
+        Route::get('usuarios', [UsuarioController::class, 'index']);
+        Route::middleware('admin.tenant')->group(function () {
+            Route::post('usuarios', [UsuarioController::class, 'store']);
+            Route::put('usuarios/{id}', [UsuarioController::class, 'update']);
+            Route::delete('usuarios/{id}', [UsuarioController::class, 'destroy']);
+            Route::put('tenant', [TenantController::class, 'update']);
 
-    // Planes (super-admin)
-    Route::middleware('superadmin')->group(function () {
-        Route::apiResource('planes', PlanController::class)->except(['show']);
-    });
+            // Roles y permisos granulares
+            Route::get('permisos', [PermisoController::class, 'index']);
+            Route::apiResource('roles', RolController::class)->except(['show']);
+            Route::post('roles/{id}/usuarios/{idUsuario}', [RolController::class, 'asignarUsuario']);
+            Route::delete('roles/{id}/usuarios/{idUsuario}', [RolController::class, 'quitarUsuario']);
+        });
 
-    Route::apiResource('categorias', CategoriaController::class);
-    Route::apiResource('productos', ProductoController::class);
+        // Planes y empresas registradas (super-admin)
+        Route::middleware('superadmin')->group(function () {
+            Route::apiResource('planes', PlanController::class)->except(['show']);
+            Route::get('empresas', [EmpresaController::class, 'index']);
+            Route::get('empresas/{id}', [EmpresaController::class, 'show']);
+            Route::patch('empresas/{id}', [EmpresaController::class, 'update']);
+            Route::delete('empresas/{id}', [EmpresaController::class, 'destroy']);
+        });
 
-    //CRM
-    Route::apiResource('clientes', ClienteController::class);
-    Route::apiResource('contactos', ContactoController::class);
-    Route::apiResource('leads', LeadController::class);
-    Route::post('leads/{id}/convertir', [LeadController::class, 'convertir']);
-    Route::apiResource('pipelines', PipelineController::class);
-    Route::apiResource('oportunidades', OportunidadController::class);
-    Route::patch('oportunidades/{id}/etapa', [OportunidadController::class, 'moverEtapa']);
-    Route::apiResource('actividades', ActividadController::class);
+        Route::permisoResourceSinVer('categorias', CategoriaController::class, 'categorias');
+        Route::permisoResourceSinVer('productos', ProductoController::class, 'productos');
 
-    Route::get('notificaciones', [NotificacionController::class, 'index']);
-    Route::patch('notificaciones/{id}/leer', [NotificacionController::class, 'marcarLeida']);
-    Route::patch('notificaciones/leer-todas', [NotificacionController::class, 'marcarTodasLeidas']);
+        //CRM
+        Route::permisoResourceSinVer('clientes', ClienteController::class, 'clientes');
+        Route::permisoResourceSinVer('contactos', ContactoController::class, 'contactos');
+        Route::permisoResourceSinVer('leads', LeadController::class, 'leads');
+        Route::post('leads/{id}/convertir', [LeadController::class, 'convertir'])->middleware('permiso:leads.editar');
+        Route::permisoResourceSinVer('pipelines', PipelineController::class, 'pipelines');
+        Route::permisoResourceSinVer('oportunidades', OportunidadController::class, 'oportunidades');
+        Route::patch('oportunidades/{id}/etapa', [OportunidadController::class, 'moverEtapa'])->middleware('permiso:oportunidades.editar');
+        Route::permisoResourceSinVer('actividades', ActividadController::class, 'actividades');
 
-    // Marketing
-    Route::get('marketing/campanas', [CampanaController::class, 'index']);
-    Route::post('marketing/campanas', [CampanaController::class, 'store']);
-    Route::put('marketing/campanas/{id}', [CampanaController::class, 'update']);
-    Route::delete('marketing/campanas/{id}', [CampanaController::class, 'destroy']);
+        Route::get('notificaciones', [NotificacionController::class, 'index']);
+        Route::patch('notificaciones/{id}/leer', [NotificacionController::class, 'marcarLeida']);
+        Route::patch('notificaciones/leer-todas', [NotificacionController::class, 'marcarTodasLeidas']);
 
-    // Automatizaciones
-    Route::apiResource('automatizaciones', AutomatizacionController::class)->except(['show']);
-    Route::patch('automatizaciones/{id}/toggle', [AutomatizacionController::class, 'toggle']);
+        // Marketing
+        Route::get('marketing/campanas', [CampanaController::class, 'index'])->middleware('permiso:marketing.ver');
+        Route::post('marketing/campanas', [CampanaController::class, 'store'])->middleware('permiso:marketing.crear');
+        Route::put('marketing/campanas/{id}', [CampanaController::class, 'update'])->middleware('permiso:marketing.editar');
+        Route::delete('marketing/campanas/{id}', [CampanaController::class, 'destroy'])->middleware('permiso:marketing.eliminar');
 
-    // Integraciones
-    Route::get('integraciones', [IntegracionController::class, 'index']);
-    Route::patch('integraciones/{id}/toggle', [IntegracionController::class, 'toggle']);
+        // Automatizaciones
+        Route::apiResource('automatizaciones', AutomatizacionController::class)->except(['show'])
+            ->middlewareFor('index', 'permiso:automatizaciones.ver')
+            ->middlewareFor('store', 'permiso:automatizaciones.crear')
+            ->middlewareFor('update', 'permiso:automatizaciones.editar')
+            ->middlewareFor('destroy', 'permiso:automatizaciones.eliminar');
+        Route::patch('automatizaciones/{id}/toggle', [AutomatizacionController::class, 'toggle'])->middleware('permiso:automatizaciones.editar');
 
-    // ERP
-    Route::prefix('erp')->group(function () {
-        Route::get('inventario/papelera', [InventarioController::class, 'papelera']);
-        Route::patch('inventario/{id}/restaurar', [InventarioController::class, 'restaurar']);
-        Route::apiResource('inventario', InventarioController::class);
-        Route::post('inventario/{id}/ajuste', [InventarioController::class, 'ajustarStock']);
-        Route::get('inventario/{id}/movimientos', [InventarioController::class, 'movimientos']);
+        // Integraciones
+        Route::get('integraciones', [IntegracionController::class, 'index'])->middleware('permiso:integraciones.ver');
+        Route::patch('integraciones/{id}/toggle', [IntegracionController::class, 'toggle'])->middleware('permiso:integraciones.editar');
 
-        Route::get('proveedores/papelera', [ProveedorController::class, 'papelera']);
-        Route::patch('proveedores/{id}/restaurar', [ProveedorController::class, 'restaurar']);
-        Route::apiResource('proveedores', ProveedorController::class);
+        // ERP
+        Route::prefix('erp')->group(function () {
+            Route::get('inventario/papelera', [InventarioController::class, 'papelera'])->middleware('permiso:erp_inventario.eliminar');
+            Route::patch('inventario/{id}/restaurar', [InventarioController::class, 'restaurar'])->middleware('permiso:erp_inventario.eliminar');
+            Route::permisoResourceSinVer('inventario', InventarioController::class, 'erp_inventario');
+            Route::post('inventario/{id}/ajuste', [InventarioController::class, 'ajustarStock'])->middleware('permiso:erp_inventario.editar');
+            Route::get('inventario/{id}/movimientos', [InventarioController::class, 'movimientos']);
 
-        Route::apiResource('compras', OrdenCompraController::class)->except(['update']);
-        Route::patch('compras/{id}/recibir', [OrdenCompraController::class, 'recibir']);
-        Route::patch('compras/{id}/cancelar', [OrdenCompraController::class, 'cancelar']);
+            Route::get('proveedores/papelera', [ProveedorController::class, 'papelera'])->middleware('permiso:erp_proveedores.eliminar');
+            Route::patch('proveedores/{id}/restaurar', [ProveedorController::class, 'restaurar'])->middleware('permiso:erp_proveedores.eliminar');
+            Route::permisoResourceSinVer('proveedores', ProveedorController::class, 'erp_proveedores');
 
-        Route::get('finanzas/papelera', [MovimientoController::class, 'papelera']);
-        Route::patch('finanzas/{id}/restaurar', [MovimientoController::class, 'restaurar']);
-        Route::apiResource('finanzas', MovimientoController::class)->except(['update']);
-        Route::apiResource('ventas', PedidoController::class);
-        Route::patch('ventas/{id}/cancelar', [PedidoController::class, 'cancelar']);
-        Route::apiResource('rrhh', EmpleadoController::class);
-        Route::apiResource('fabricacion', OrdenProduccionController::class);
-        Route::get('scm/papelera', [EnvioController::class, 'papelera']);
-        Route::patch('scm/{id}/restaurar', [EnvioController::class, 'restaurar']);
-        Route::apiResource('scm', EnvioController::class);
-        Route::apiResource('proyectos', ProyectoController::class);
+            Route::apiResource('compras', OrdenCompraController::class)->except(['update'])
+                ->middlewareFor('store', 'permiso:erp_compras.crear')
+                ->middlewareFor('destroy', 'permiso:erp_compras.eliminar');
+            Route::patch('compras/{id}/recibir', [OrdenCompraController::class, 'recibir'])->middleware('permiso:erp_compras.editar');
+            Route::patch('compras/{id}/cancelar', [OrdenCompraController::class, 'cancelar'])->middleware('permiso:erp_compras.editar');
 
-        Route::get('crm/resumen', [CrmResumenController::class, 'resumen']);
-        Route::get('crm/interacciones', [CrmResumenController::class, 'interacciones']);
+            // erp/finanzas y erp/rrhh son sensibles: se gatea "ver" también,
+            // no solo crear/editar/eliminar (ver plan SPRINT-21).
+            Route::get('finanzas/papelera', [MovimientoController::class, 'papelera'])->middleware('permiso:erp_finanzas.eliminar');
+            Route::patch('finanzas/{id}/restaurar', [MovimientoController::class, 'restaurar'])->middleware('permiso:erp_finanzas.eliminar');
+            Route::apiResource('finanzas', MovimientoController::class)->except(['update'])
+                ->middlewareFor(['index', 'show'], 'permiso:erp_finanzas.ver')
+                ->middlewareFor('store', 'permiso:erp_finanzas.crear')
+                ->middlewareFor('destroy', 'permiso:erp_finanzas.eliminar');
+            Route::permisoResourceSinVer('ventas', PedidoController::class, 'erp_ventas');
+            Route::patch('ventas/{id}/cancelar', [PedidoController::class, 'cancelar'])->middleware('permiso:erp_ventas.editar');
+            Route::permisoResource('rrhh', EmpleadoController::class, 'erp_rrhh');
+            Route::permisoResourceSinVer('fabricacion', OrdenProduccionController::class, 'erp_fabricacion');
+            Route::get('scm/papelera', [EnvioController::class, 'papelera'])->middleware('permiso:erp_scm.eliminar');
+            Route::patch('scm/{id}/restaurar', [EnvioController::class, 'restaurar'])->middleware('permiso:erp_scm.eliminar');
+            Route::permisoResourceSinVer('scm', EnvioController::class, 'erp_scm');
+            Route::permisoResourceSinVer('proyectos', ProyectoController::class, 'erp_proyectos');
 
-        Route::get('dashboard/resumen', [ErpDashboardController::class, 'resumen']);
+            Route::get('proyectos/{idProyecto}/tareas', [ProyectoTareaController::class, 'index']);
+            Route::post('proyectos/{idProyecto}/tareas', [ProyectoTareaController::class, 'store'])->middleware('permiso:erp_proyectos.editar');
+            Route::put('proyectos/{idProyecto}/tareas/{id}', [ProyectoTareaController::class, 'update'])->middleware('permiso:erp_proyectos.editar');
+            Route::delete('proyectos/{idProyecto}/tareas/{id}', [ProyectoTareaController::class, 'destroy'])->middleware('permiso:erp_proyectos.editar');
+
+            Route::get('proyectos/{idProyecto}/horas', [ProyectoHoraController::class, 'index']);
+            Route::post('proyectos/{idProyecto}/horas', [ProyectoHoraController::class, 'store'])->middleware('permiso:erp_proyectos.editar');
+            Route::delete('proyectos/{idProyecto}/horas/{id}', [ProyectoHoraController::class, 'destroy'])->middleware('permiso:erp_proyectos.editar');
+
+            Route::get('crm/resumen', [CrmResumenController::class, 'resumen']);
+            Route::get('crm/interacciones', [CrmResumenController::class, 'interacciones']);
+
+            Route::get('dashboard/resumen', [ErpDashboardController::class, 'resumen']);
+            Route::get('reportes/resumen', [ErpReporteController::class, 'resumen']);
+        });
     });
  });

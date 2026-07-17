@@ -41,6 +41,11 @@ class Rol extends Model
         return $this->belongsToMany(Permiso::class, 'rol_permiso', 'id_rol', 'id_permiso');
     }
 
+    public function usuarios()
+    {
+        return $this->belongsToMany(Usuarios::class, 'usuario_rol', 'id_rol', 'id_usuario');
+    }
+
     public static function esAdminTenant(int $idUsuario, int $idTenant): bool
     {
         return DB::table('usuario_rol')
@@ -95,5 +100,68 @@ class Rol extends Model
             ->where('id_tenant', $idTenant)
             ->where('id_rol', $rol->id_rol)
             ->delete();
+    }
+
+    /**
+     * ¿Tiene el usuario el permiso dado (clave "recurso.accion") en este tenant?
+     * Los admins de tenant y el superadmin de plataforma siempre pasan.
+     */
+    public static function tienePermiso(int $idUsuario, int $idTenant, string $clave): bool
+    {
+        if (self::esAdminTenant($idUsuario, $idTenant) || self::esSuperAdmin($idUsuario)) {
+            return true;
+        }
+
+        return DB::table('usuario_rol')
+            ->join('rol_permiso', 'rol_permiso.id_rol', '=', 'usuario_rol.id_rol')
+            ->join('permisos', 'permisos.id_permiso', '=', 'rol_permiso.id_permiso')
+            ->where('usuario_rol.id_usuario', $idUsuario)
+            ->where('usuario_rol.id_tenant', $idTenant)
+            ->where('permisos.clave', $clave)
+            ->exists();
+    }
+
+    /**
+     * Todas las claves de permiso que tiene el usuario en este tenant
+     * (vía los roles que tenga asignados). No incluye el bypass de admin.
+     */
+    public static function permisosDe(int $idUsuario, int $idTenant): array
+    {
+        return DB::table('usuario_rol')
+            ->join('rol_permiso', 'rol_permiso.id_rol', '=', 'usuario_rol.id_rol')
+            ->join('permisos', 'permisos.id_permiso', '=', 'rol_permiso.id_permiso')
+            ->where('usuario_rol.id_usuario', $idUsuario)
+            ->where('usuario_rol.id_tenant', $idTenant)
+            ->distinct()
+            ->pluck('permisos.clave')
+            ->all();
+    }
+
+    /**
+     * Asigna el rol "tenant.miembro" (todos los permisos, rol por defecto
+     * para no-admins) a un usuario, creando el rol para el tenant si hace
+     * falta. Usado al invitar un miembro nuevo o al aprovisionar un tenant.
+     */
+    public static function asignarMiembro(int $idUsuario, int $idTenant, ?int $asignadoPor = null): void
+    {
+        $rol = self::firstOrCreate(
+            ['id_tenant' => $idTenant, 'clave' => 'tenant.miembro'],
+            [
+                'nombre' => 'Miembro',
+                'descripcion' => 'Rol por defecto con todos los permisos.',
+                'es_sistema' => true,
+            ]
+        );
+
+        $idsPermisos = DB::table('permisos')->pluck('id_permiso');
+        $existentes = DB::table('rol_permiso')->where('id_rol', $rol->id_rol)->pluck('id_permiso');
+        foreach ($idsPermisos->diff($existentes) as $idPermiso) {
+            DB::table('rol_permiso')->insert(['id_rol' => $rol->id_rol, 'id_permiso' => $idPermiso]);
+        }
+
+        DB::table('usuario_rol')->updateOrInsert(
+            ['id_usuario' => $idUsuario, 'id_tenant' => $idTenant, 'id_rol' => $rol->id_rol],
+            ['asignado_por' => $asignadoPor, 'asignado_en' => now(), 'created_at' => now(), 'updated_at' => now()]
+        );
     }
 }

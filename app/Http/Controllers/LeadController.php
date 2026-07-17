@@ -32,7 +32,8 @@ class LeadController extends Controller
         
         $lead->latest('id_lead');
 
-        return response()->json($lead->paginate(15));
+        $perPage = min((int) $request->input('per_page', 15), 500);
+        return response()->json($lead->paginate($perPage));
     }
 
     /**

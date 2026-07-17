@@ -24,7 +24,8 @@ class ClienteController extends Controller
 
         $cliente->latest('id_cliente');
 
-        return response()->json($cliente->paginate(15));
+        $perPage = min((int) $request->input('per_page', 15), 500);
+        return response()->json($cliente->paginate($perPage));
     }
 
     /**

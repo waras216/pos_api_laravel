@@ -22,4 +22,14 @@ class Proyecto extends Model
     protected $casts = [
         'presupuesto' => 'float',
     ];
+
+    public function tareas()
+    {
+        return $this->hasMany(ProyectoTarea::class, 'id_proyecto')->orderBy('orden');
+    }
+
+    public function registrosHoras()
+    {
+        return $this->hasMany(ProyectoHora::class, 'id_proyecto');
+    }
 }

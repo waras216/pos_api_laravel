@@ -47,11 +47,34 @@ class TenantController extends Controller
         return response()->json($this->present($tenant->fresh('negocio')));
     }
 
+    public function update(Request $request)
+    {
+        $data = $request->validate([
+            'sector' => 'nullable|string|max:100',
+            'idioma' => 'nullable|string|in:es,en',
+            'zonaHoraria' => 'nullable|string|max:60',
+            'moneda' => 'nullable|string|in:MXN,USD,EUR,COP,ARS',
+        ]);
+
+        $tenant = Tenant::where('id_tenant', $request->user()->id_tenant)->firstOrFail();
+        $tenant->update([
+            'sector' => $data['sector'] ?? $tenant->sector,
+            'idioma' => $data['idioma'] ?? $tenant->idioma,
+            'zona_horaria' => $data['zonaHoraria'] ?? $tenant->zona_horaria,
+            'moneda' => $data['moneda'] ?? $tenant->moneda,
+        ]);
+
+        return response()->json($this->present($tenant->fresh('negocio')));
+    }
+
     private function present(Tenant $tenant): array
     {
         return [
             'empresa' => $tenant->nombre_tenant,
             'onboardingCompleto' => (bool) $tenant->onboarding_completado,
+            'sector' => $tenant->sector,
+            'idioma' => $tenant->idioma,
+            'zonaHoraria' => $tenant->zona_horaria,
             'nichoData' => $tenant->onboarding_completado ? array_merge([
                 'nicho' => optional($tenant->negocio)->slug,
                 'moneda' => $tenant->moneda,

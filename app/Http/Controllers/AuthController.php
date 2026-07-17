@@ -13,6 +13,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Password;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 class AuthController extends Controller
@@ -29,6 +30,12 @@ class AuthController extends Controller
             return response()->json([
                 'message' => 'credenciales incorrectas'
             ],400);
+        }
+
+        if ($user->tenant && $user->tenant->estado !== 'activo') {
+            return response()->json([
+                'message' => 'Tu empresa fue suspendida. Contacta a soporte.'
+            ], 403);
         }
 
         $token = $user->createToken('api_token')->plainTextToken;
@@ -151,6 +158,56 @@ class AuthController extends Controller
         return response()->json($this->serializeUser($request->user()));
     }
 
+    public function actualizarPerfil(Request $request)
+    {
+        $user = $request->user();
+
+        $data = $request->validate([
+            'nombre' => 'required|string|max:150',
+            'email' => 'required|email|max:200|unique:usuarios,email,' . $user->id_usuario . ',id_usuario',
+        ]);
+
+        $user->update($data);
+
+        return response()->json($this->serializeUser($user));
+    }
+
+    public function actualizarFoto(Request $request)
+    {
+        $request->validate([
+            'foto' => 'required|image|mimes:jpg,jpeg,png,webp|max:2048',
+        ]);
+
+        $user = $request->user();
+
+        if ($user->foto_perfil) {
+            Storage::disk('public')->delete($user->foto_perfil);
+        }
+
+        $path = $request->file('foto')->store('perfiles', 'public');
+        if ($path === false) {
+            return response()->json(['message' => 'No se pudo guardar la imagen.'], 500);
+        }
+
+        $user->foto_perfil = $path;
+        $user->save();
+
+        return response()->json($this->serializeUser($user));
+    }
+
+    public function eliminarFoto(Request $request)
+    {
+        $user = $request->user();
+
+        if ($user->foto_perfil) {
+            Storage::disk('public')->delete($user->foto_perfil);
+            $user->foto_perfil = null;
+            $user->save();
+        }
+
+        return response()->json($this->serializeUser($user));
+    }
+
     public function serializeUser(Usuarios $user): array
     {
         $user->loadMissing('tenant.negocio', 'tenant.plan');
@@ -169,16 +226,28 @@ class AuthController extends Controller
             ], $tenant->datos_nicho ?? []);
         }
 
+        $esAdmin = $tenant ? Rol::esAdminTenant($user->id_usuario, $tenant->id_tenant) : false;
+        $esSuperadmin = Rol::esSuperAdmin($user->id_usuario);
+
         return [
             'id_usuario' => $user->id_usuario,
             'id_tenant' => $user->id_tenant,
             'nombre' => $user->nombre,
             'email' => $user->email,
+            'foto_perfil' => $user->foto_perfil ? Storage::disk('public')->url($user->foto_perfil) : null,
             'empresa' => $tenant?->nombre_tenant,
             'onboardingCompleto' => (bool) $tenant?->onboarding_completado,
+            'sector' => $tenant?->sector,
+            'idioma' => $tenant?->idioma,
+            'zonaHoraria' => $tenant?->zona_horaria,
             'nichoData' => $nichoData,
-            'es_admin' => $tenant ? Rol::esAdminTenant($user->id_usuario, $tenant->id_tenant) : false,
-            'es_superadmin' => Rol::esSuperAdmin($user->id_usuario),
+            'es_admin' => $esAdmin,
+            'es_superadmin' => $esSuperadmin,
+            // Claves de permiso granular ("recurso.accion") del usuario en el
+            // tenant activo. ['*'] significa "todo permitido" (admin/superadmin).
+            'permisos' => ($esAdmin || $esSuperadmin)
+                ? ['*']
+                : ($tenant ? Rol::permisosDe($user->id_usuario, $tenant->id_tenant) : []),
             'plan' => $tenant?->plan ? [
                 'nombre_plan' => $tenant->plan->nombre_plan,
                 'max_usuarios' => $tenant->plan->max_usuarios,

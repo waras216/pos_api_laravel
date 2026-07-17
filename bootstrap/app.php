@@ -15,6 +15,8 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'admin.tenant' => \App\Http\Middleware\EnsureTenantAdmin::class,
             'superadmin' => \App\Http\Middleware\EnsureSuperAdmin::class,
+            'tenant.activo' => \App\Http\Middleware\EnsureTenantActive::class,
+            'permiso' => \App\Http\Middleware\CheckPermiso::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

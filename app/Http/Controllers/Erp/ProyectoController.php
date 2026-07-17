@@ -12,8 +12,10 @@ class ProyectoController extends Controller
     {
         return response()->json(
             Proyecto::where('id_tenant', $request->user()->id_tenant)
+                ->withSum('registrosHoras as horas_registradas', 'horas')
                 ->latest('id')
                 ->get()
+                ->map(fn ($p) => tap($p, fn ($p) => $p->horas_registradas = $p->horas_registradas ?? 0))
         );
     }
 
@@ -36,9 +38,12 @@ class ProyectoController extends Controller
 
     public function show(Request $request, string $id)
     {
-        return response()->json(
-            Proyecto::where('id_tenant', $request->user()->id_tenant)->findOrFail($id)
-        );
+        $proyecto = Proyecto::where('id_tenant', $request->user()->id_tenant)
+            ->withSum('registrosHoras as horas_registradas', 'horas')
+            ->findOrFail($id);
+        $proyecto->horas_registradas = $proyecto->horas_registradas ?? 0;
+
+        return response()->json($proyecto);
     }
 
     public function update(Request $request, string $id)

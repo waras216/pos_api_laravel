@@ -90,6 +90,10 @@ class UsuarioController extends Controller
 
         if ($esAdmin) {
             Rol::asignarTenantAdmin($usuario->id_usuario, $idTenant, $request->user()->id_usuario);
+        } else {
+            // Rol por defecto (todos los permisos) para que un miembro
+            // recién invitado no quede sin acceso a nada.
+            Rol::asignarMiembro($usuario->id_usuario, $idTenant, $request->user()->id_usuario);
         }
 
         $respuesta = $usuario->toArray();
@@ -141,6 +145,9 @@ class UsuarioController extends Controller
             Rol::asignarTenantAdmin($usuario->id_usuario, $idTenant, $request->user()->id_usuario);
         } elseif ($esAdminSolicitado === false) {
             Rol::revocarTenantAdmin($usuario->id_usuario, $idTenant);
+            // Al quitarle el admin, cae al rol por defecto para no dejarlo
+            // sin ningún permiso.
+            Rol::asignarMiembro($usuario->id_usuario, $idTenant, $request->user()->id_usuario);
         }
 
         $respuesta = $usuario->toArray();
