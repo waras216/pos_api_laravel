@@ -21,6 +21,31 @@ class EmpresaController extends Controller
     }
 
     /**
+     * KPI de usuarios registrados agrupado por nicho de negocio (solo superadmin).
+     */
+    public function kpisPorNicho()
+    {
+        $kpis = Tenant::with('negocio')
+            ->withCount(['miembros as usuarios_count'])
+            ->get()
+            ->groupBy(fn (Tenant $tenant) => optional($tenant->negocio)->id_tiponegocio ?? 0)
+            ->map(function ($grupo) {
+                $negocio = $grupo->first()->negocio;
+
+                return [
+                    'id_tiponegocio' => optional($negocio)->id_tiponegocio,
+                    'nicho' => optional($negocio)->nombre_negocio ?? 'Sin nicho',
+                    'empresas' => $grupo->count(),
+                    'usuarios' => $grupo->sum('usuarios_count'),
+                ];
+            })
+            ->sortByDesc('usuarios')
+            ->values();
+
+        return response()->json($kpis);
+    }
+
+    /**
      * Detalle de un tenant: datos generales + equipo (miembros activos).
      */
     public function show(string $id)
@@ -51,6 +76,9 @@ class EmpresaController extends Controller
         $data = $request->validate([
             'estado' => 'sometimes|string|in:activo,suspendido',
             'id_plan' => 'sometimes|integer|exists:plans,id_plan',
+            'modulo_crm' => 'sometimes|boolean',
+            'modulo_pos' => 'sometimes|boolean',
+            'modulo_erp' => 'sometimes|boolean',
         ]);
 
         $tenant->update($data);

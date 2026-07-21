@@ -2,11 +2,14 @@
 
 namespace App\Models\Erp;
 
+use App\Models\Concerns\BelongsToTenant;
 use App\Models\Proveedor;
 use Illuminate\Database\Eloquent\Model;
 
 class OrdenCompra extends Model
 {
+    use BelongsToTenant;
+
     protected $table = 'erp_ordenes_compra';
 
     protected $fillable = [

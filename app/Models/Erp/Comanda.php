@@ -2,35 +2,35 @@
 
 namespace App\Models\Erp;
 
-use App\Models\Cliente;
 use App\Models\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Model;
 
-class Pedido extends Model
+class Comanda extends Model
 {
     use BelongsToTenant;
 
-    protected $table = 'erp_pedidos_venta';
+    protected $table = 'erp_comandas';
 
     protected $fillable = [
         'id_tenant',
-        'id_cliente',
-        'total',
+        'id_mesa',
         'estado',
-        'fecha',
+        'enviada_cocina',
+        'total',
     ];
 
     protected $casts = [
+        'enviada_cocina' => 'boolean',
         'total' => 'float',
     ];
 
-    public function cliente()
+    public function mesa()
     {
-        return $this->belongsTo(Cliente::class, 'id_cliente', 'id_cliente');
+        return $this->belongsTo(Mesa::class, 'id_mesa');
     }
 
     public function items()
     {
-        return $this->hasMany(PedidoItem::class, 'id_pedido');
+        return $this->hasMany(ComandaItem::class, 'id_comanda');
     }
 }

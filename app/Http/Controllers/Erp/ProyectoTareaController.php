@@ -32,6 +32,8 @@ class ProyectoTareaController extends Controller
             'descripcion' => 'nullable|string',
             'asignado' => 'nullable|string|max:150',
             'estado' => 'sometimes|in:pendiente,en_progreso,completada',
+            'fecha_inicio' => 'nullable|date',
+            'fecha_fin' => 'nullable|date|after_or_equal:fecha_inicio',
         ]);
 
         $data['id_tenant'] = $request->user()->id_tenant;
@@ -54,6 +56,8 @@ class ProyectoTareaController extends Controller
             'descripcion' => 'nullable|string',
             'asignado' => 'nullable|string|max:150',
             'estado' => 'sometimes|in:pendiente,en_progreso,completada',
+            'fecha_inicio' => 'nullable|date',
+            'fecha_fin' => 'nullable|date|after_or_equal:fecha_inicio',
         ]);
 
         $eraCompletada = $tarea->estado === 'completada';

@@ -38,6 +38,12 @@ class AuthController extends Controller
             ], 403);
         }
 
+        if ($user->estado === 'suspendido') {
+            return response()->json([
+                'message' => 'Tu cuenta fue suspendida. Contacta a un administrador.'
+            ], 403);
+        }
+
         $token = $user->createToken('api_token')->plainTextToken;
 
         return response()->json([
@@ -172,6 +178,23 @@ class AuthController extends Controller
         return response()->json($this->serializeUser($user));
     }
 
+    /**
+     * Autoservicio: el propio usuario cambia su estado de disponibilidad
+     * (activo/ocupado). Suspender a alguien es una acción de admin, se hace
+     * desde UsuarioController::update.
+     */
+    public function actualizarEstado(Request $request)
+    {
+        $data = $request->validate([
+            'estado' => 'required|string|in:activo,ocupado',
+        ]);
+
+        $user = $request->user();
+        $user->update($data);
+
+        return response()->json($this->serializeUser($user));
+    }
+
     public function actualizarFoto(Request $request)
     {
         $request->validate([
@@ -234,6 +257,7 @@ class AuthController extends Controller
             'id_tenant' => $user->id_tenant,
             'nombre' => $user->nombre,
             'email' => $user->email,
+            'estado' => $user->estado,
             'foto_perfil' => $user->foto_perfil ? Storage::disk('public')->url($user->foto_perfil) : null,
             'empresa' => $tenant?->nombre_tenant,
             'onboardingCompleto' => (bool) $tenant?->onboarding_completado,

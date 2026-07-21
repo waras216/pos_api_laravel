@@ -16,6 +16,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'admin.tenant' => \App\Http\Middleware\EnsureTenantAdmin::class,
             'superadmin' => \App\Http\Middleware\EnsureSuperAdmin::class,
             'tenant.activo' => \App\Http\Middleware\EnsureTenantActive::class,
+            'usuario.activo' => \App\Http\Middleware\EnsureUserActive::class,
             'permiso' => \App\Http\Middleware\CheckPermiso::class,
         ]);
     })

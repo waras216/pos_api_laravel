@@ -2,10 +2,13 @@
 
 namespace App\Models\Erp;
 
+use App\Models\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Model;
 
 class Proyecto extends Model
 {
+    use BelongsToTenant;
+
     protected $table = 'erp_proyectos';
 
     protected $fillable = [

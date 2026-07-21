@@ -27,6 +27,7 @@ class UsuarioController extends Controller
                 'usuarios.id_usuario',
                 'usuarios.nombre',
                 'usuarios.email',
+                'usuarios.estado',
                 'usuarios.created_at',
                 'membresias.es_owner',
             ])
@@ -118,7 +119,12 @@ class UsuarioController extends Controller
             'email' => 'sometimes|email|unique:usuarios,email,' . $usuario->id_usuario . ',id_usuario',
             'password' => 'nullable|min:6',
             'es_admin' => 'sometimes|boolean',
+            'estado' => 'sometimes|string|in:activo,ocupado,suspendido',
         ]);
+
+        if (($data['estado'] ?? null) === 'suspendido' && $usuario->id_usuario === $request->user()->id_usuario) {
+            return response()->json(['message' => 'No puedes suspenderte a ti mismo'], 422);
+        }
 
         $esUnicoAdmin = count(Rol::idsAdminTenant($idTenant)) <= 1;
 

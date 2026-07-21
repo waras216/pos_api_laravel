@@ -28,6 +28,9 @@ use App\Http\Controllers\Erp\OrdenCompraController;
 use App\Http\Controllers\Erp\ProveedorController;
 use App\Http\Controllers\Erp\MovimientoController;
 use App\Http\Controllers\Erp\PedidoController;
+use App\Http\Controllers\Erp\MesaController;
+use App\Http\Controllers\Erp\HabitacionController;
+use App\Http\Controllers\Erp\RecetaController;
 use App\Http\Controllers\Erp\EmpleadoController;
 use App\Http\Controllers\Erp\OrdenProduccionController;
 use App\Http\Controllers\Erp\EnvioController;
@@ -98,6 +101,7 @@ Route::macro('permisoResourceSinVer', function (string $uri, string $controller,
  Route::middleware('auth:sanctum')->group(function(){
     Route::get('/user', [AuthController::class, 'me']);
     Route::put('perfil', [AuthController::class, 'actualizarPerfil']);
+    Route::patch('perfil/estado', [AuthController::class, 'actualizarEstado']);
     Route::post('perfil/foto', [AuthController::class, 'actualizarFoto']);
     Route::delete('perfil/foto', [AuthController::class, 'eliminarFoto']);
 
@@ -112,7 +116,7 @@ Route::macro('permisoResourceSinVer', function (string $uri, string $controller,
     // suspendido. /user, tenant/* y mis-empresas/* quedan fuera para que un
     // usuario de una empresa suspendida pueda ver su sesión y cambiarse a
     // otra empresa suya que sí esté activa.
-    Route::middleware('tenant.activo')->group(function () {
+    Route::middleware(['tenant.activo', 'usuario.activo'])->group(function () {
         // Equipo (usuarios del tenant)
         Route::get('usuarios', [UsuarioController::class, 'index']);
         Route::middleware('admin.tenant')->group(function () {
@@ -132,6 +136,7 @@ Route::macro('permisoResourceSinVer', function (string $uri, string $controller,
         Route::middleware('superadmin')->group(function () {
             Route::apiResource('planes', PlanController::class)->except(['show']);
             Route::get('empresas', [EmpresaController::class, 'index']);
+            Route::get('empresas/kpis/nicho', [EmpresaController::class, 'kpisPorNicho']);
             Route::get('empresas/{id}', [EmpresaController::class, 'show']);
             Route::patch('empresas/{id}', [EmpresaController::class, 'update']);
             Route::delete('empresas/{id}', [EmpresaController::class, 'destroy']);
@@ -200,6 +205,33 @@ Route::macro('permisoResourceSinVer', function (string $uri, string $controller,
                 ->middlewareFor('destroy', 'permiso:erp_finanzas.eliminar');
             Route::permisoResourceSinVer('ventas', PedidoController::class, 'erp_ventas');
             Route::patch('ventas/{id}/cancelar', [PedidoController::class, 'cancelar'])->middleware('permiso:erp_ventas.editar');
+
+            // Mesas/comandas del terminal POS de restaurante (SPRINT-39).
+            Route::get('mesas', [MesaController::class, 'index']);
+            Route::post('mesas', [MesaController::class, 'store'])->middleware('permiso:erp_ventas.editar');
+            Route::delete('mesas/{id}', [MesaController::class, 'destroy'])->middleware('permiso:erp_ventas.eliminar');
+            Route::patch('mesas/{id}/abrir', [MesaController::class, 'abrir'])->middleware('permiso:erp_ventas.crear');
+            Route::patch('mesas/{id}/pedir-cuenta', [MesaController::class, 'pedirCuenta'])->middleware('permiso:erp_ventas.editar');
+            Route::post('mesas/{id}/items', [MesaController::class, 'agregarItem'])->middleware('permiso:erp_ventas.crear');
+            Route::patch('mesas/{id}/items/{itemId}', [MesaController::class, 'actualizarItem'])->middleware('permiso:erp_ventas.editar');
+            Route::delete('mesas/{id}/items/{itemId}', [MesaController::class, 'quitarItem'])->middleware('permiso:erp_ventas.editar');
+            Route::post('mesas/{id}/enviar-cocina', [MesaController::class, 'enviarCocina'])->middleware('permiso:erp_ventas.editar');
+            Route::post('mesas/{id}/cobrar', [MesaController::class, 'cobrar'])->middleware('permiso:erp_ventas.crear');
+
+            // Habitaciones/room-service del terminal POS de hotel (SPRINT-39).
+            Route::get('habitaciones', [HabitacionController::class, 'index']);
+            Route::post('habitaciones', [HabitacionController::class, 'store'])->middleware('permiso:erp_ventas.editar');
+            Route::delete('habitaciones/{id}', [HabitacionController::class, 'destroy'])->middleware('permiso:erp_ventas.eliminar');
+            Route::patch('habitaciones/{id}/check-in', [HabitacionController::class, 'checkIn'])->middleware('permiso:erp_ventas.crear');
+            Route::post('habitaciones/{id}/consumos', [HabitacionController::class, 'agregarConsumo'])->middleware('permiso:erp_ventas.crear');
+            Route::delete('habitaciones/{id}/consumos/{consumoId}', [HabitacionController::class, 'quitarConsumo'])->middleware('permiso:erp_ventas.editar');
+            Route::patch('habitaciones/{id}/mantenimiento', [HabitacionController::class, 'mantenimiento'])->middleware('permiso:erp_ventas.editar');
+            Route::post('habitaciones/{id}/check-out', [HabitacionController::class, 'checkOut'])->middleware('permiso:erp_ventas.crear');
+
+            // Recetas del terminal POS de farmacia (SPRINT-39).
+            Route::get('recetas', [RecetaController::class, 'index']);
+            Route::post('recetas', [RecetaController::class, 'store'])->middleware('permiso:erp_ventas.crear');
+            Route::post('recetas/dispensar-lote', [RecetaController::class, 'dispensarLote'])->middleware('permiso:erp_ventas.crear');
             Route::permisoResource('rrhh', EmpleadoController::class, 'erp_rrhh');
             Route::permisoResourceSinVer('fabricacion', OrdenProduccionController::class, 'erp_fabricacion');
             Route::get('scm/papelera', [EnvioController::class, 'papelera'])->middleware('permiso:erp_scm.eliminar');

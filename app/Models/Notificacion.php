@@ -2,10 +2,13 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Model;
 
 class Notificacion extends Model
 {
+    use BelongsToTenant;
+
     protected $table = 'notificaciones';
     protected $primaryKey = 'id_notificacion';
 
