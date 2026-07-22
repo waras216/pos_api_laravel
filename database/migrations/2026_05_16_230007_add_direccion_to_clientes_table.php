@@ -11,6 +11,10 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (Schema::hasColumn('clientes', 'direccion')) {
+            return;
+        }
+
         Schema::table('clientes', function (Blueprint $table) {
             $table->string('direccion', 150)->nullable()->after('rfc');
         });

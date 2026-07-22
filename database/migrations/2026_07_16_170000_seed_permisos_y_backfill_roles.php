@@ -113,6 +113,6 @@ return new class extends Migration
             'es_sistema' => true,
             'created_at' => now(),
             'updated_at' => now(),
-        ]);
+        ], 'id_rol');
     }
 };

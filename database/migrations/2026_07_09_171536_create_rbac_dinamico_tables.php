@@ -123,7 +123,7 @@ return new class extends Migration
             'es_sistema' => true,
             'created_at' => now(),
             'updated_at' => now(),
-        ]);
+        ], 'id_rol');
 
         $tenantIds = DB::table('usuarios')->select('id_tenant')->distinct()->pluck('id_tenant');
 
@@ -136,7 +136,7 @@ return new class extends Migration
                 'es_sistema' => true,
                 'created_at' => now(),
                 'updated_at' => now(),
-            ]);
+            ], 'id_rol');
 
             $usuariosAdmin = DB::table('usuarios')
                 ->where('id_tenant', $idTenant)

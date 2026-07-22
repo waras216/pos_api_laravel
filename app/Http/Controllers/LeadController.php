@@ -23,7 +23,7 @@ class LeadController extends Controller
 
 
         $lead->when($request->filled('search'), function ($q) use($request){
-            $q->where('titulo', 'like', '%' . $request->search . '%');
+            $q->whereLike('titulo', '%' . $request->search . '%');
         });
 
         $lead->when($request->filled('estado') && $request->estado !== 'todos', function ($q) use ($request){
@@ -48,7 +48,7 @@ class LeadController extends Controller
                 'email' => 'nullable|email|max:200',
                 'telefono' => 'nullable|string|max:20',
                 'descripcion' => 'nullable|string',
-                'estado' => 'sometimes|in:nuevo,contactado,calificado,perdido',
+                'estado' => 'sometimes|in:nuevo,contactado,calificado,perdido,convertido',
                 'fuente' => 'sometimes|in:web,referido,llamada,email,otro',
                 'valor_estimado' => 'nullable|numeric|min:0',
             ]);
@@ -88,7 +88,7 @@ class LeadController extends Controller
             'email'          => 'nullable|email|max:200',
             'telefono'       => 'nullable|string|max:20',
             'descripcion'    => 'nullable|string',
-            'estado'         => 'sometimes|in:nuevo,contactado,calificado,perdido',
+            'estado'         => 'sometimes|in:nuevo,contactado,calificado,perdido,convertido',
             'fuente'         => 'sometimes|in:web,referido,llamada,email,otro',
             'valor_estimado' => 'nullable|numeric|min:0',
         ]);

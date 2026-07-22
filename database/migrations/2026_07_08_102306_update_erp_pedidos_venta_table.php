@@ -15,12 +15,16 @@ return new class extends Migration
             $table->foreignId('id_cliente')->after('id_tenant')->constrained('clientes', 'id_cliente');
         });
 
-        DB::statement("ALTER TABLE erp_pedidos_venta MODIFY estado ENUM('pendiente', 'enviado', 'facturado', 'cancelada') DEFAULT 'pendiente'");
+        Schema::table('erp_pedidos_venta', function (Blueprint $table) {
+            $table->string('estado', 30)->default('pendiente')->change();
+        });
     }
 
     public function down(): void
     {
-        DB::statement("ALTER TABLE erp_pedidos_venta MODIFY estado ENUM('pendiente', 'enviado', 'facturado') DEFAULT 'pendiente'");
+        Schema::table('erp_pedidos_venta', function (Blueprint $table) {
+            $table->string('estado', 30)->default('pendiente')->change();
+        });
 
         Schema::table('erp_pedidos_venta', function (Blueprint $table) {
             $table->dropConstrainedForeignId('id_cliente');

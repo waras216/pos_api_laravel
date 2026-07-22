@@ -15,7 +15,7 @@ class ClienteController extends Controller
         $cliente = Cliente::where('id_tenant', $request->user()->id_tenant);
 
         $cliente->when($request->filled('search'), function ($q) use ($request) {
-            $q->where('nombre', 'like', '%' . $request->search . '%');
+            $q->whereLike('nombre', '%' . $request->search . '%');
         });
 
         $cliente->when($request->filled('tipo') && $request->tipo !== 'todos', function ($q) use ($request) {

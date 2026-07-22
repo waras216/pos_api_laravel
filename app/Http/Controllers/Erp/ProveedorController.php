@@ -13,7 +13,7 @@ class ProveedorController extends Controller
         $query = Proveedor::where('id_tenant', $request->user()->id_tenant);
 
         $query->when($request->filled('search'), function ($q) use ($request) {
-            $q->where('nombre', 'like', '%' . $request->search . '%');
+            $q->whereLike('nombre', '%' . $request->search . '%');
         });
 
         return response()->json($query->orderBy('nombre')->get());
