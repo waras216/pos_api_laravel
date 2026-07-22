@@ -2,12 +2,10 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Integracion;
 use App\Models\Membresia;
-use App\Models\Pipeline;
 use App\Models\Rol;
-use App\Models\Tenant;
 use App\Models\Usuarios;
+use App\Services\OnboardingService;
 use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -59,47 +57,11 @@ class AuthController extends Controller
             'password' => 'required|min:6',
         ]);
 
-        $tenant = Tenant::create([
-            'nombre_tenant' => $data['nombre'] . ' Company',
-            'subdominio' => Str::slug($data['nombre']) . '-' . Str::random(6),
-            'estado' => 'activo',
-            'onboarding_completado' => false,
-            'id_plan' => 1,
-        ]);
-
-        $user = Usuarios::create([
-            'id_tenant' => $tenant->id_tenant,
-            'nombre' => $data['nombre'],
-            'email' => $data['email'],
-            'password' => Hash::make($data['password']),
-        ]);
-
-        Rol::asignarTenantAdmin($user->id_usuario, $tenant->id_tenant);
-
-        Membresia::create([
-            'id_usuario' => $user->id_usuario,
-            'id_tenant' => $tenant->id_tenant,
-            'estado' => 'activa',
-            'es_owner' => true,
-            'unido_en' => now(),
-        ]);
-
-        Pipeline::create(['id_tenant' => $tenant->id_tenant, 'nombre' => 'Ventas', 'activo' => true]);
-        Pipeline::create(['id_tenant' => $tenant->id_tenant, 'nombre' => 'Servicios', 'activo' => true]);
-
-        foreach ([
-            ['nombre' => 'WhatsApp Business', 'tipo' => 'whatsapp'],
-            ['nombre' => 'Email Marketing', 'tipo' => 'email'],
-            ['nombre' => 'Google Calendar', 'tipo' => 'calendario'],
-            ['nombre' => 'Almacenamiento en la nube', 'tipo' => 'almacenamiento'],
-        ] as $integracion) {
-            Integracion::create([
-                'id_tenant' => $tenant->id_tenant,
-                'nombre' => $integracion['nombre'],
-                'tipo' => $integracion['tipo'],
-                'estado' => 'desconectada',
-            ]);
-        }
+        $user = app(OnboardingService::class)->provisionarTenantYUsuario(
+            $data['nombre'],
+            $data['email'],
+            Hash::make($data['password']),
+        );
 
         $token = $user->createToken('api_token')->plainTextToken;
 
