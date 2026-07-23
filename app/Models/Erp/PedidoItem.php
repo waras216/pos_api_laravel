@@ -14,11 +14,13 @@ class PedidoItem extends Model
         'id_producto',
         'cantidad',
         'precio_unitario',
+        'costo_unitario',
         'subtotal',
     ];
 
     protected $casts = [
         'precio_unitario' => 'float',
+        'costo_unitario' => 'float',
         'subtotal' => 'float',
     ];
 

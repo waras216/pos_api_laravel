@@ -7,12 +7,15 @@ use App\Models\Erp\MovimientoStock;
 use App\Models\Erp\OrdenCompra;
 use App\Models\Erp\OrdenCompraItem;
 use App\Models\Producto;
+use App\Services\Erp\AsientoService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class OrdenCompraController extends Controller
 {
+    public function __construct(private AsientoService $asientos) {}
+
     public function index(Request $request)
     {
         return response()->json(
@@ -110,6 +113,7 @@ class OrdenCompraController extends Controller
                     ->findOrFail($item->id_producto);
 
                 $producto->increment('stock', $item->cantidad);
+                $producto->update(['precio_compra' => $item->precio_unitario]);
 
                 MovimientoStock::create([
                     'id_tenant' => $request->user()->id_tenant,
@@ -124,6 +128,8 @@ class OrdenCompraController extends Controller
 
             $orden->update(['estado' => 'recibida']);
         });
+
+        $this->asientos->registrarCompraRecibida($orden);
 
         return response()->json($orden->load(['proveedor', 'items.producto']));
     }

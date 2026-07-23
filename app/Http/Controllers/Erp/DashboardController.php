@@ -3,39 +3,56 @@
 namespace App\Http\Controllers\Erp;
 
 use App\Http\Controllers\Controller;
+use App\Models\Erp\Asiento;
+use App\Models\Erp\AsientoDetalle;
+use App\Models\Erp\Comanda;
 use App\Models\Erp\Empleado;
 use App\Models\Erp\Envio;
-use App\Models\Erp\Movimiento;
+use App\Models\Erp\Habitacion;
+use App\Models\Erp\Mesa;
 use App\Models\Erp\OrdenCompra;
 use App\Models\Erp\OrdenProduccion;
 use App\Models\Erp\Pedido;
 use App\Models\Erp\Proyecto;
+use App\Models\Erp\Receta;
 use App\Models\Producto;
+use App\Models\Tenant;
 use Illuminate\Http\Request;
 
 class DashboardController extends Controller
 {
+    // Mismo criterio que ERP_TABS_OCULTOS_POR_NICHO en module.service.ts
+    // (frontend) — mantener sincronizados.
+    private const NICHOS_SIN_FABRICACION = ['restaurante', 'hotel', 'farmacia', 'tienda', 'startup'];
+    private const NICHOS_SIN_SCM = ['restaurante', 'hotel', 'farmacia', 'startup'];
+    private const NICHOS_SIN_COMPRAS_INVENTARIO = ['startup'];
+
     public function resumen(Request $request)
     {
         $idTenant = $request->user()->id_tenant;
+        $nicho = Tenant::with('negocio')->find($idTenant)?->negocio?->slug;
 
         $inventario = Producto::where('id_tenant', $idTenant)->get();
         $compras = OrdenCompra::where('id_tenant', $idTenant)->with('proveedor')->get();
-        $movimientos = Movimiento::where('id_tenant', $idTenant)->get();
         $ventas = Pedido::where('id_tenant', $idTenant)->with('cliente')->get();
         $empleados = Empleado::where('id_tenant', $idTenant)->get();
         $produccion = OrdenProduccion::where('id_tenant', $idTenant)->get();
         $envios = Envio::where('id_tenant', $idTenant)->get();
         $proyectos = Proyecto::where('id_tenant', $idTenant)->get();
 
+        // Ingresos/egresos del mes se leen del libro mayor (partida doble)
+        // en vez de la vieja tabla plana erp_movimientos.
+        $lineasMes = AsientoDetalle::whereHas('asiento', fn ($q) => $q->where('id_tenant', $idTenant)
+            ->whereYear('fecha', now()->year)
+            ->whereMonth('fecha', now()->month))
+            ->whereHas('cuenta', fn ($q) => $q->whereIn('tipo', ['ingreso', 'costo', 'gasto']))
+            ->with('cuenta')
+            ->get();
+
         $valorInventario = $inventario->sum(fn ($p) => $p->precio * $p->stock);
         $comprasPendientes = $compras->where('estado', 'pendiente');
-        $ingresosMes = $movimientos->where('tipo', 'ingreso')
-            ->filter(fn ($m) => \Illuminate\Support\Carbon::parse($m->fecha)->isCurrentMonth())
-            ->sum('monto');
-        $egresosMes = $movimientos->where('tipo', 'egreso')
-            ->filter(fn ($m) => \Illuminate\Support\Carbon::parse($m->fecha)->isCurrentMonth())
-            ->sum('monto');
+        $ingresosMes = $lineasMes->where('cuenta.tipo', 'ingreso')->sum(fn ($l) => $l->haber - $l->debe);
+        $egresosMes = $lineasMes->whereIn('cuenta.tipo', ['costo', 'gasto'])->sum(fn ($l) => $l->debe - $l->haber);
         $ventasPorCobrar = $ventas->where('estado', '!=', 'facturado')->sum('total');
         $empleadosActivos = $empleados->where('estado', 'activo');
         $nominaMensual = $empleadosActivos->sum('salario');
@@ -64,15 +81,63 @@ class DashboardController extends Controller
             ['titulo' => 'Proyectos', 'subtitulo' => 'Planificación y horas', 'emoji' => '📁', 'bg' => 'bg-indigo-100', 'stat' => $proyectosActivos->count() . ' activos', 'statColor' => 'text-indigo-600', 'extra' => $horasProyectos . 'h registradas'],
         ];
 
+        if (in_array($nicho, self::NICHOS_SIN_FABRICACION, true)) {
+            $modulos = array_values(array_filter($modulos, fn ($m) => $m['titulo'] !== 'Fabricación'));
+        }
+        if (in_array($nicho, self::NICHOS_SIN_SCM, true)) {
+            $modulos = array_values(array_filter($modulos, fn ($m) => $m['titulo'] !== 'SCM'));
+        }
+        if (in_array($nicho, self::NICHOS_SIN_COMPRAS_INVENTARIO, true)) {
+            $modulos = array_values(array_filter($modulos, fn ($m) => ! in_array($m['titulo'], ['Compras', 'Inventario'], true)));
+        }
+
+        $actividadExtra = collect();
+
+        if ($nicho === 'restaurante') {
+            $mesas = Mesa::where('id_tenant', $idTenant)->get();
+            $ocupadas = $mesas->whereIn('estado', ['ocupada', 'cuenta'])->count();
+
+            $kpis[] = ['value' => "{$ocupadas}/{$mesas->count()}", 'label' => 'Mesas ocupadas', 'bg' => 'bg-red-100', 'color' => 'text-red-600', 'icon' => 'box'];
+            $modulos[] = ['titulo' => 'Mesas', 'subtitulo' => 'Comandas y ocupación', 'emoji' => '🍽️', 'bg' => 'bg-red-100', 'stat' => $ocupadas . ' ocupadas', 'statColor' => 'text-red-600', 'extra' => $mesas->count() . ' mesas totales'];
+
+            $actividadExtra = Comanda::where('id_tenant', $idTenant)->where('estado', 'cerrada')->with('mesa')
+                ->latest('updated_at')->take(5)->get()
+                ->map(fn ($c) => ['texto' => "Mesa {$c->mesa?->numero} cobrada — \$" . number_format($c->total, 0), 'dot' => 'bg-red-400', 'ts' => $c->updated_at]);
+        } elseif ($nicho === 'hotel') {
+            $habitaciones = Habitacion::where('id_tenant', $idTenant)->get();
+            $ocupadas = $habitaciones->where('estado', 'ocupada')->count();
+
+            $kpis[] = ['value' => "{$ocupadas}/{$habitaciones->count()}", 'label' => 'Habitaciones ocupadas', 'bg' => 'bg-blue-100', 'color' => 'text-blue-600', 'icon' => 'box'];
+            $modulos[] = ['titulo' => 'Habitaciones', 'subtitulo' => 'Ocupación y check-ins', 'emoji' => '🛏️', 'bg' => 'bg-blue-100', 'stat' => $ocupadas . ' ocupadas', 'statColor' => 'text-blue-600', 'extra' => $habitaciones->count() . ' habitaciones totales'];
+
+            $actividadExtra = $habitaciones->where('estado', 'ocupada')
+                ->sortByDesc('updated_at')->take(5)
+                ->map(fn ($h) => ['texto' => "Check-in: {$h->huesped} — Hab. {$h->numero}", 'dot' => 'bg-amber-400', 'ts' => $h->updated_at])
+                ->values();
+        } elseif ($nicho === 'farmacia') {
+            $pendientes = Receta::where('id_tenant', $idTenant)->where('pendiente', true)->count();
+            $total = Receta::where('id_tenant', $idTenant)->count();
+
+            $kpis[] = ['value' => (string) $pendientes, 'label' => 'Recetas pendientes', 'bg' => 'bg-emerald-100', 'color' => 'text-emerald-600', 'icon' => 'clipboard'];
+            $modulos[] = ['titulo' => 'Recetas', 'subtitulo' => 'Control y dispensación', 'emoji' => '💊', 'bg' => 'bg-emerald-100', 'stat' => $pendientes . ' pendientes', 'statColor' => 'text-amber-600', 'extra' => $total . ' recetas registradas'];
+
+            $actividadExtra = Receta::where('id_tenant', $idTenant)->where('pendiente', false)->with('producto')
+                ->latest('updated_at')->take(5)->get()
+                ->map(fn ($r) => ['texto' => 'Receta dispensada: ' . ($r->producto?->nombre ?? 'producto'), 'dot' => 'bg-emerald-400', 'ts' => $r->updated_at]);
+        }
+
+        $asientosRecientes = Asiento::where('id_tenant', $idTenant)->latest('created_at')->take(10)->get();
+
         $actividad = collect()
             ->concat($inventario->map(fn ($i) => ['texto' => "Producto agregado a inventario: {$i->nombre}", 'dot' => 'bg-amber-400', 'ts' => $i->created_at]))
             ->concat($compras->map(fn ($o) => ['texto' => "Orden de compra a {$o->proveedor?->nombre} por \$" . number_format($o->total, 0), 'dot' => 'bg-blue-400', 'ts' => $o->created_at]))
-            ->concat($movimientos->map(fn ($m) => ['texto' => ($m->tipo === 'ingreso' ? 'Ingreso registrado: ' : 'Egreso registrado: ') . $m->concepto, 'dot' => $m->tipo === 'ingreso' ? 'bg-emerald-400' : 'bg-red-400', 'ts' => $m->created_at]))
+            ->concat($asientosRecientes->map(fn ($a) => ['texto' => "Asiento contable: {$a->concepto}", 'dot' => $a->origen === 'ajuste' ? 'bg-red-400' : 'bg-emerald-400', 'ts' => $a->created_at]))
             ->concat($ventas->map(fn ($v) => ['texto' => "Pedido de venta para {$v->cliente?->nombre} por \$" . number_format($v->total, 0), 'dot' => 'bg-blue-400', 'ts' => $v->created_at]))
             ->concat($empleados->map(fn ($e) => ['texto' => "Nuevo empleado: {$e->nombre} ({$e->puesto})", 'dot' => 'bg-purple-400', 'ts' => $e->created_at]))
             ->concat($produccion->map(fn ($p) => ['texto' => "Orden de producción: {$p->producto} x{$p->cantidad}", 'dot' => 'bg-amber-400', 'ts' => $p->created_at]))
             ->concat($envios->map(fn ($e) => ['texto' => "Envío a {$e->destino} vía {$e->transportista}", 'dot' => 'bg-teal-400', 'ts' => $e->created_at]))
             ->concat($proyectos->map(fn ($p) => ['texto' => "Proyecto creado: {$p->nombre} ({$p->cliente})", 'dot' => 'bg-indigo-400', 'ts' => $p->created_at]))
+            ->concat($actividadExtra)
             ->sortByDesc('ts')
             ->take(8)
             ->map(fn ($a) => ['texto' => $a['texto'], 'dot' => $a['dot'], 'tiempo' => $a['ts']->diffForHumans()])

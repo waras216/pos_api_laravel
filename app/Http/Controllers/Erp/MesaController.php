@@ -10,6 +10,7 @@ use App\Models\Erp\MovimientoStock;
 use App\Models\Erp\Pedido;
 use App\Models\Erp\PedidoItem;
 use App\Models\Producto;
+use App\Services\Erp\AsientoService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -17,6 +18,8 @@ use Illuminate\Validation\ValidationException;
 
 class MesaController extends Controller
 {
+    public function __construct(private AsientoService $asientos) {}
+
     private function mesaDelTenant(Request $request, string $id): Mesa
     {
         return Mesa::where('id_tenant', $request->user()->id_tenant)->findOrFail($id);
@@ -235,6 +238,7 @@ class MesaController extends Controller
                     'id_producto' => $item->id_producto,
                     'cantidad' => $item->cantidad,
                     'precio_unitario' => $item->precio_unitario,
+                    'costo_unitario' => $producto->precio_compra,
                     'subtotal' => $subtotal,
                 ]);
 
@@ -261,6 +265,8 @@ class MesaController extends Controller
 
             return $pedido;
         });
+
+        $this->asientos->registrarVenta($pedido->load('items'));
 
         return response()->json([
             'mesa' => $this->conRelaciones($mesa->fresh()),

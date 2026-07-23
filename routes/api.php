@@ -40,6 +40,10 @@ use App\Http\Controllers\Erp\ProyectoHoraController;
 use App\Http\Controllers\Erp\CrmResumenController;
 use App\Http\Controllers\Erp\DashboardController as ErpDashboardController;
 use App\Http\Controllers\Erp\ReporteController as ErpReporteController;
+use App\Http\Controllers\Erp\CuentaContableController;
+use App\Http\Controllers\Erp\AsientoController;
+use App\Http\Controllers\Erp\EstadosFinancierosController;
+use App\Http\Controllers\Erp\NominaController;
 use Symfony\Component\Routing\RouterInterface;
 
 // Gatea un apiResource completo (incluyendo index/show) por permiso granular
@@ -206,6 +210,23 @@ Route::macro('permisoResourceSinVer', function (string $uri, string $controller,
             Route::permisoResourceSinVer('ventas', PedidoController::class, 'erp_ventas');
             Route::patch('ventas/{id}/cancelar', [PedidoController::class, 'cancelar'])->middleware('permiso:erp_ventas.editar');
 
+            // Contabilidad formal: plan de cuentas, asientos de partida doble
+            // y estados financieros. Reutiliza el grupo de permisos
+            // erp_finanzas.* que ya protegía el libro de caja plano.
+            Route::get('contabilidad/cuentas', [CuentaContableController::class, 'index'])->middleware('permiso:erp_finanzas.ver');
+            Route::post('contabilidad/cuentas', [CuentaContableController::class, 'store'])->middleware('permiso:erp_finanzas.crear');
+            Route::put('contabilidad/cuentas/{id}', [CuentaContableController::class, 'update'])->middleware('permiso:erp_finanzas.editar');
+            Route::delete('contabilidad/cuentas/{id}', [CuentaContableController::class, 'destroy'])->middleware('permiso:erp_finanzas.eliminar');
+
+            Route::get('contabilidad/asientos', [AsientoController::class, 'index'])->middleware('permiso:erp_finanzas.ver');
+            Route::post('contabilidad/asientos', [AsientoController::class, 'store'])->middleware('permiso:erp_finanzas.crear');
+            Route::get('contabilidad/asientos/{id}', [AsientoController::class, 'show'])->middleware('permiso:erp_finanzas.ver');
+            Route::post('contabilidad/asientos/{id}/reversar', [AsientoController::class, 'reversar'])->middleware('permiso:erp_finanzas.crear');
+
+            Route::get('contabilidad/balance-comprobacion', [EstadosFinancierosController::class, 'balanceComprobacion'])->middleware('permiso:erp_finanzas.ver');
+            Route::get('contabilidad/estado-resultados', [EstadosFinancierosController::class, 'estadoResultados'])->middleware('permiso:erp_finanzas.ver');
+            Route::get('contabilidad/balance-general', [EstadosFinancierosController::class, 'balanceGeneral'])->middleware('permiso:erp_finanzas.ver');
+
             // Mesas/comandas del terminal POS de restaurante (SPRINT-39).
             Route::get('mesas', [MesaController::class, 'index']);
             Route::post('mesas', [MesaController::class, 'store'])->middleware('permiso:erp_ventas.editar');
@@ -232,6 +253,10 @@ Route::macro('permisoResourceSinVer', function (string $uri, string $controller,
             Route::get('recetas', [RecetaController::class, 'index']);
             Route::post('recetas', [RecetaController::class, 'store'])->middleware('permiso:erp_ventas.crear');
             Route::post('recetas/dispensar-lote', [RecetaController::class, 'dispensarLote'])->middleware('permiso:erp_ventas.crear');
+            // Debe ir antes de permisoResource('rrhh', ...): su ruta 'show'
+            // (rrhh/{rrhh}) intercepta cualquier ruta literal registrada después.
+            Route::get('rrhh/nomina', [NominaController::class, 'index'])->middleware('permiso:erp_rrhh.ver');
+            Route::post('rrhh/nomina/procesar', [NominaController::class, 'procesar'])->middleware('permiso:erp_rrhh.crear');
             Route::permisoResource('rrhh', EmpleadoController::class, 'erp_rrhh');
             Route::permisoResourceSinVer('fabricacion', OrdenProduccionController::class, 'erp_fabricacion');
             Route::get('scm/papelera', [EnvioController::class, 'papelera'])->middleware('permiso:erp_scm.eliminar');

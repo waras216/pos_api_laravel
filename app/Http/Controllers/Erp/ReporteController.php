@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Erp;
 
 use App\Http\Controllers\Controller;
-use App\Models\Erp\Movimiento;
+use App\Models\Erp\AsientoDetalle;
 use App\Models\Erp\OrdenCompra;
 use App\Models\Erp\Pedido;
 use App\Models\Producto;
@@ -35,13 +35,23 @@ class ReporteController extends Controller
             ->when($hasta, fn ($q) => $q->whereDate('fecha', '<=', $hasta))
             ->get();
 
-        $movimientos = Movimiento::where('id_tenant', $idTenant)
-            ->when($desde, fn ($q) => $q->whereDate('fecha', '>=', $desde))
-            ->when($hasta, fn ($q) => $q->whereDate('fecha', '<=', $hasta))
+        // Movimientos financieros ahora se leen del libro mayor (partida
+        // doble) en vez de la vieja tabla plana erp_movimientos: solo las
+        // líneas contra cuentas de ingreso/costo/gasto son relevantes para
+        // este resumen tipo estado de resultados.
+        $lineas = AsientoDetalle::whereHas('asiento', function ($q) use ($idTenant, $desde, $hasta) {
+            $q->where('id_tenant', $idTenant)
+                ->when($desde, fn ($q) => $q->whereDate('fecha', '>=', $desde))
+                ->when($hasta, fn ($q) => $q->whereDate('fecha', '<=', $hasta));
+        })
+            ->whereHas('cuenta', fn ($q) => $q->whereIn('tipo', ['ingreso', 'costo', 'gasto']))
+            ->with(['cuenta', 'asiento'])
             ->get();
 
-        $ingresosTotal = $movimientos->where('tipo', 'ingreso')->sum('monto');
-        $egresosTotal = $movimientos->where('tipo', 'egreso')->sum('monto');
+        $montoLinea = fn ($l) => $l->cuenta->tipo === 'ingreso' ? $l->haber - $l->debe : $l->debe - $l->haber;
+
+        $ingresosTotal = $lineas->where('cuenta.tipo', 'ingreso')->sum($montoLinea);
+        $egresosTotal = $lineas->whereIn('cuenta.tipo', ['costo', 'gasto'])->sum($montoLinea);
 
         return response()->json([
             'kpis' => [
@@ -60,13 +70,13 @@ class ReporteController extends Controller
                 ->groupBy(fn ($c) => $c->proveedor->nombre ?? 'Sin proveedor')
                 ->map(fn ($g) => $g->sum('total')),
             'ventasPorEstado' => $ventas->groupBy('estado')->map->count(),
-            'movimientosPorCategoria' => $movimientos->groupBy('categoria')->map(fn ($g) => $g->sum('monto')),
-            'movimientosPorMes' => $movimientos
-                ->groupBy(fn ($m) => Carbon::parse($m->fecha)->format('Y-m'))
+            'movimientosPorCategoria' => $lineas->groupBy(fn ($l) => $l->cuenta->nombre)->map(fn ($g) => $g->sum($montoLinea)),
+            'movimientosPorMes' => $lineas
+                ->groupBy(fn ($l) => Carbon::parse($l->asiento->fecha)->format('Y-m'))
                 ->sortKeys()
                 ->map(fn ($g) => [
-                    'ingresos' => $g->where('tipo', 'ingreso')->sum('monto'),
-                    'egresos' => $g->where('tipo', 'egreso')->sum('monto'),
+                    'ingresos' => $g->where('cuenta.tipo', 'ingreso')->sum($montoLinea),
+                    'egresos' => $g->whereIn('cuenta.tipo', ['costo', 'gasto'])->sum($montoLinea),
                 ])
                 ->map(fn ($v, $mes) => ['mes' => $mes] + $v)
                 ->values(),

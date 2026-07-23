@@ -8,6 +8,7 @@ use App\Models\Erp\Pedido;
 use App\Models\Erp\PedidoItem;
 use App\Models\Erp\Receta;
 use App\Models\Producto;
+use App\Services\Erp\AsientoService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -15,6 +16,8 @@ use Illuminate\Validation\ValidationException;
 
 class RecetaController extends Controller
 {
+    public function __construct(private AsientoService $asientos) {}
+
     public function index(Request $request)
     {
         $idTenant = $request->user()->id_tenant;
@@ -104,6 +107,7 @@ class RecetaController extends Controller
                     'id_producto' => $producto->id_productos,
                     'cantidad' => $receta->cantidad,
                     'precio_unitario' => $producto->precio,
+                    'costo_unitario' => $producto->precio_compra,
                     'subtotal' => $subtotal,
                 ]);
 
@@ -126,6 +130,8 @@ class RecetaController extends Controller
 
             return $pedido;
         });
+
+        $this->asientos->registrarVenta($pedido->load('items'));
 
         return response()->json($pedido->load(['cliente', 'items.producto']), 201);
     }

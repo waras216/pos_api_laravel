@@ -8,10 +8,13 @@ use App\Models\Pipeline;
 use App\Models\Rol;
 use App\Models\Tenant;
 use App\Models\Usuarios;
+use App\Services\Erp\PlanCuentasService;
 use Illuminate\Support\Str;
 
 class OnboardingService
 {
+    public function __construct(private PlanCuentasService $planCuentas) {}
+
     /**
      * Provisiona un tenant nuevo para un usuario que se registra por primera
      * vez: crea el Tenant, la membresía de owner/admin, los pipelines por
@@ -49,6 +52,8 @@ class OnboardingService
 
         Pipeline::create(['id_tenant' => $tenant->id_tenant, 'nombre' => 'Ventas', 'activo' => true]);
         Pipeline::create(['id_tenant' => $tenant->id_tenant, 'nombre' => 'Servicios', 'activo' => true]);
+
+        $this->planCuentas->sembrarParaTenant($tenant->id_tenant);
 
         foreach ([
             ['nombre' => 'WhatsApp Business', 'tipo' => 'whatsapp'],

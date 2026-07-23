@@ -7,6 +7,7 @@ use App\Models\Erp\MovimientoStock;
 use App\Models\Erp\Pedido;
 use App\Models\Erp\PedidoItem;
 use App\Models\Producto;
+use App\Services\Erp\AsientoService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -14,6 +15,8 @@ use Illuminate\Validation\ValidationException;
 
 class PedidoController extends Controller
 {
+    public function __construct(private AsientoService $asientos) {}
+
     public function index(Request $request)
     {
         return response()->json(
@@ -70,15 +73,17 @@ class PedidoController extends Controller
                 $subtotal = $item['cantidad'] * $item['precio_unitario'];
                 $total += $subtotal;
 
+                $producto = $productos[$i];
+
                 PedidoItem::create([
                     'id_pedido' => $pedido->id,
                     'id_producto' => $item['id_producto'],
                     'cantidad' => $item['cantidad'],
                     'precio_unitario' => $item['precio_unitario'],
+                    'costo_unitario' => $producto->precio_compra,
                     'subtotal' => $subtotal,
                 ]);
 
-                $producto = $productos[$i];
                 $producto->decrement('stock', $item['cantidad']);
 
                 MovimientoStock::create([
@@ -96,6 +101,10 @@ class PedidoController extends Controller
 
             return $pedido;
         });
+
+        if ($pedido->estado === 'facturado') {
+            $this->asientos->registrarVenta($pedido->load('items'));
+        }
 
         return response()->json($pedido->load(['cliente', 'items.producto']), 201);
     }
@@ -121,7 +130,12 @@ class PedidoController extends Controller
             'estado' => 'required|in:pendiente,enviado,facturado',
         ]);
 
+        $estadoAnterior = $pedido->estado;
         $pedido->update($data);
+
+        if ($pedido->estado === 'facturado' && $estadoAnterior !== 'facturado') {
+            $this->asientos->registrarVenta($pedido->load('items'));
+        }
 
         return response()->json($pedido->load(['cliente', 'items.producto']));
     }
