@@ -222,6 +222,7 @@ class AuthController extends Controller
             'estado' => $user->estado,
             'foto_perfil' => $user->foto_perfil ? Storage::disk('public')->url($user->foto_perfil) : null,
             'empresa' => $tenant?->nombre_tenant,
+            'logo' => $tenant?->logo ? Storage::disk('public')->url($tenant->logo) : null,
             'onboardingCompleto' => (bool) $tenant?->onboarding_completado,
             'sector' => $tenant?->sector,
             'idioma' => $tenant?->idioma,

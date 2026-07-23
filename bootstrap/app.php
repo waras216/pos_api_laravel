@@ -18,6 +18,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'tenant.activo' => \App\Http\Middleware\EnsureTenantActive::class,
             'usuario.activo' => \App\Http\Middleware\EnsureUserActive::class,
             'permiso' => \App\Http\Middleware\CheckPermiso::class,
+            'modulo' => \App\Http\Middleware\EnsureModuloContratado::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

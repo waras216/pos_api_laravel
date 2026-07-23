@@ -4,10 +4,14 @@ namespace App\Http\Controllers;
 
 use App\Models\Negocio;
 use App\Models\Tenant;
+use App\Services\OnboardingService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 
 class TenantController extends Controller
 {
+    public function __construct(private OnboardingService $onboarding) {}
+
     public function show(Request $request)
     {
         $tenant = Tenant::with('negocio')
@@ -28,7 +32,13 @@ class TenantController extends Controller
             'modulos.pos' => 'required|boolean',
             'modulos.erp' => 'required|boolean',
             'datos_nicho' => 'nullable|array',
+            'datos_nicho.hotelHabitaciones' => 'nullable|integer|min:1|max:200',
+            'datos_nicho.restMesas' => 'nullable|integer|min:1|max:200',
         ]);
+
+        if (! $data['modulos']['crm'] && ! $data['modulos']['pos'] && ! $data['modulos']['erp']) {
+            return response()->json(['message' => 'Selecciona al menos un módulo.'], 422);
+        }
 
         $negocio = Negocio::where('slug', $data['nicho'])->firstOrFail();
 
@@ -44,6 +54,8 @@ class TenantController extends Controller
             'onboarding_completado' => true,
         ]);
 
+        $this->onboarding->provisionarRecursosPorNicho($tenant, $data['nicho'], $data['datos_nicho'] ?? []);
+
         return response()->json($this->present($tenant->fresh('negocio')));
     }
 
@@ -54,15 +66,74 @@ class TenantController extends Controller
             'idioma' => 'nullable|string|in:es,en',
             'zonaHoraria' => 'nullable|string|max:60',
             'moneda' => 'nullable|string|in:MXN,USD,EUR,COP,ARS',
+            'empresa' => 'nullable|string|max:150',
+            'nicho' => 'nullable|string|in:hotel,restaurante,almacen,farmacia,startup,tienda',
+            'modulos' => 'nullable|array',
+            'modulos.crm' => 'required_with:modulos|boolean',
+            'modulos.pos' => 'required_with:modulos|boolean',
+            'modulos.erp' => 'required_with:modulos|boolean',
         ]);
 
+        if (isset($data['modulos']) && ! $data['modulos']['crm'] && ! $data['modulos']['pos'] && ! $data['modulos']['erp']) {
+            return response()->json(['message' => 'Selecciona al menos un módulo.'], 422);
+        }
+
         $tenant = Tenant::where('id_tenant', $request->user()->id_tenant)->firstOrFail();
-        $tenant->update([
+
+        $cambios = [
             'sector' => $data['sector'] ?? $tenant->sector,
             'idioma' => $data['idioma'] ?? $tenant->idioma,
             'zona_horaria' => $data['zonaHoraria'] ?? $tenant->zona_horaria,
             'moneda' => $data['moneda'] ?? $tenant->moneda,
+            'nombre_tenant' => $data['empresa'] ?? $tenant->nombre_tenant,
+        ];
+
+        if (! empty($data['nicho'])) {
+            $negocio = Negocio::where('slug', $data['nicho'])->firstOrFail();
+            $cambios['id_tiponegocio'] = $negocio->id_tiponegocio;
+        }
+
+        if (isset($data['modulos'])) {
+            $cambios['modulo_crm'] = $data['modulos']['crm'];
+            $cambios['modulo_pos'] = $data['modulos']['pos'];
+            $cambios['modulo_erp'] = $data['modulos']['erp'];
+        }
+
+        $tenant->update($cambios);
+
+        return response()->json($this->present($tenant->fresh('negocio')));
+    }
+
+    public function subirLogo(Request $request)
+    {
+        $request->validate([
+            'logo' => 'required|image|mimes:jpg,jpeg,png,webp,svg|max:2048',
         ]);
+
+        $tenant = Tenant::where('id_tenant', $request->user()->id_tenant)->firstOrFail();
+
+        if ($tenant->logo) {
+            Storage::disk('public')->delete($tenant->logo);
+        }
+
+        $path = $request->file('logo')->store('logos', 'public');
+        if ($path === false) {
+            return response()->json(['message' => 'No se pudo guardar el logo.'], 500);
+        }
+
+        $tenant->update(['logo' => $path]);
+
+        return response()->json($this->present($tenant->fresh('negocio')));
+    }
+
+    public function eliminarLogo(Request $request)
+    {
+        $tenant = Tenant::where('id_tenant', $request->user()->id_tenant)->firstOrFail();
+
+        if ($tenant->logo) {
+            Storage::disk('public')->delete($tenant->logo);
+            $tenant->update(['logo' => null]);
+        }
 
         return response()->json($this->present($tenant->fresh('negocio')));
     }
@@ -71,6 +142,7 @@ class TenantController extends Controller
     {
         return [
             'empresa' => $tenant->nombre_tenant,
+            'logo' => $tenant->logo ? Storage::disk('public')->url($tenant->logo) : null,
             'onboardingCompleto' => (bool) $tenant->onboarding_completado,
             'sector' => $tenant->sector,
             'idioma' => $tenant->idioma,

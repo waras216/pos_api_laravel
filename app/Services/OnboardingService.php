@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Models\Erp\Habitacion;
+use App\Models\Erp\Mesa;
 use App\Models\Integracion;
 use App\Models\Membresia;
 use App\Models\Pipeline;
@@ -70,5 +72,33 @@ class OnboardingService
         }
 
         return $user;
+    }
+
+    /**
+     * Crea los recursos ERP que el usuario ya declaró en el wizard de
+     * onboarding (cantidad de habitaciones/mesas) para que no tenga que
+     * darlas de alta una por una a mano. Idempotente: no crea nada si el
+     * tenant ya tiene alguna habitación/mesa (por ejemplo si el onboarding
+     * se vuelve a completar sobre un tenant ya provisionado).
+     */
+    public function provisionarRecursosPorNicho(Tenant $tenant, string $nicho, array $datosNicho): void
+    {
+        if ($nicho === 'hotel' && ! empty($datosNicho['hotelHabitaciones'])) {
+            $cantidad = (int) $datosNicho['hotelHabitaciones'];
+            if ($cantidad > 0 && ! Habitacion::withoutGlobalScopes()->where('id_tenant', $tenant->id_tenant)->exists()) {
+                for ($i = 1; $i <= $cantidad; $i++) {
+                    Habitacion::create(['id_tenant' => $tenant->id_tenant, 'numero' => $i]);
+                }
+            }
+        }
+
+        if ($nicho === 'restaurante' && ! empty($datosNicho['restMesas'])) {
+            $cantidad = (int) $datosNicho['restMesas'];
+            if ($cantidad > 0 && ! Mesa::withoutGlobalScopes()->where('id_tenant', $tenant->id_tenant)->exists()) {
+                for ($i = 1; $i <= $cantidad; $i++) {
+                    Mesa::create(['id_tenant' => $tenant->id_tenant, 'numero' => $i]);
+                }
+            }
+        }
     }
 }

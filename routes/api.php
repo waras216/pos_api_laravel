@@ -128,6 +128,8 @@ Route::macro('permisoResourceSinVer', function (string $uri, string $controller,
             Route::put('usuarios/{id}', [UsuarioController::class, 'update']);
             Route::delete('usuarios/{id}', [UsuarioController::class, 'destroy']);
             Route::put('tenant', [TenantController::class, 'update']);
+            Route::post('tenant/logo', [TenantController::class, 'subirLogo']);
+            Route::delete('tenant/logo', [TenantController::class, 'eliminarLogo']);
 
             // Roles y permisos granulares
             Route::get('permisos', [PermisoController::class, 'index']);
@@ -182,7 +184,7 @@ Route::macro('permisoResourceSinVer', function (string $uri, string $controller,
         Route::patch('integraciones/{id}/toggle', [IntegracionController::class, 'toggle'])->middleware('permiso:integraciones.editar');
 
         // ERP
-        Route::prefix('erp')->group(function () {
+        Route::prefix('erp')->middleware('modulo:erp')->group(function () {
             Route::get('inventario/papelera', [InventarioController::class, 'papelera'])->middleware('permiso:erp_inventario.eliminar');
             Route::patch('inventario/{id}/restaurar', [InventarioController::class, 'restaurar'])->middleware('permiso:erp_inventario.eliminar');
             Route::permisoResourceSinVer('inventario', InventarioController::class, 'erp_inventario');

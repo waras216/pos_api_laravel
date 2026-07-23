@@ -14,6 +14,7 @@
         
         protected $fillable = [
             'nombre_tenant',
+            'logo',
             'subdominio',
             'estado',
             'id_tiponegocio',
