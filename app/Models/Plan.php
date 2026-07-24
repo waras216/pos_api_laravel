@@ -14,6 +14,7 @@ class Plan extends Model
     protected $fillable = [
         'nombre_plan',
         'precio',
+        'stripe_price_id',
         'max_usuarios',
         'fecha_inicio',
         'fecha_fin'
@@ -22,6 +23,11 @@ class Plan extends Model
     public function tenants()
     {
         return $this->hasMany(Tenant::class, 'id_plan');
+    }
+
+    public function suscripciones()
+    {
+        return $this->hasMany(Suscripcion::class, 'id_plan', 'id_plan');
     }
 
 }

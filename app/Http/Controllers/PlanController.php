@@ -25,6 +25,7 @@ class PlanController extends Controller
         $data = $request->validate([
             'nombre_plan' => 'required|string|max:100',
             'precio' => 'required|numeric|min:0',
+            'stripe_price_id' => 'nullable|string|max:255',
             'max_usuarios' => 'nullable|integer|min:1',
             'fecha_inicio' => 'required|date',
             'fecha_fin' => 'required|date',
@@ -43,6 +44,7 @@ class PlanController extends Controller
         $data = $request->validate([
             'nombre_plan' => 'sometimes|string|max:100',
             'precio' => 'sometimes|numeric|min:0',
+            'stripe_price_id' => 'nullable|string|max:255',
             'max_usuarios' => 'nullable|integer|min:1',
             'fecha_inicio' => 'sometimes|date',
             'fecha_fin' => 'sometimes|date',
@@ -61,6 +63,10 @@ class PlanController extends Controller
 
         if ($plan->tenants()->exists()) {
             return response()->json(['message' => 'No se puede eliminar un plan con tenants asignados'], 422);
+        }
+
+        if ($plan->suscripciones()->exists()) {
+            return response()->json(['message' => 'No se puede eliminar un plan con suscripciones asociadas'], 422);
         }
 
         $plan->delete();

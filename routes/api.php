@@ -23,6 +23,8 @@ use App\Http\Controllers\PlanController;
 use App\Http\Controllers\EmpresaController;
 use App\Http\Controllers\MembresiaController;
 use App\Http\Controllers\PassportAuthController;
+use App\Http\Controllers\SuscripcionController;
+use App\Http\Controllers\StripeWebhookController;
 use App\Http\Controllers\Erp\InventarioController;
 use App\Http\Controllers\Erp\OrdenCompraController;
 use App\Http\Controllers\Erp\ProveedorController;
@@ -73,6 +75,11 @@ Route::macro('permisoResourceSinVer', function (string $uri, string $controller,
  Route::post('/register',[AuthController::class, 'register']);
  Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
  Route::post('/reset-password', [AuthController::class, 'resetPassword']);
+
+ // Webhook de Stripe: fuera de auth:sanctum a propósito (lo llama Stripe,
+ // no un usuario logueado). La autenticidad se valida por firma dentro del
+ // controller (Stripe-Signature + STRIPE_WEBHOOK_SECRET), no por token.
+ Route::post('/stripe/webhook', [StripeWebhookController::class, 'handle']);
 
  // Authorization Code + PKCE (Fase 3, ver §06). /oauth/authorize y la mitad
  // "cruda" de /oauth/token los registra Passport solo; estos son la capa
@@ -136,6 +143,11 @@ Route::macro('permisoResourceSinVer', function (string $uri, string $controller,
             Route::apiResource('roles', RolController::class)->except(['show']);
             Route::post('roles/{id}/usuarios/{idUsuario}', [RolController::class, 'asignarUsuario']);
             Route::delete('roles/{id}/usuarios/{idUsuario}', [RolController::class, 'quitarUsuario']);
+
+            // Suscripción del tenant activo (Stripe Checkout + Billing Portal)
+            Route::get('suscripcion', [SuscripcionController::class, 'show']);
+            Route::post('suscripcion/checkout', [SuscripcionController::class, 'checkout']);
+            Route::post('suscripcion/portal', [SuscripcionController::class, 'portal']);
         });
 
         // Planes y empresas registradas (super-admin)

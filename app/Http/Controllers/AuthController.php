@@ -239,6 +239,9 @@ class AuthController extends Controller
                 'nombre_plan' => $tenant->plan->nombre_plan,
                 'max_usuarios' => $tenant->plan->max_usuarios,
                 'usuarios_actuales' => Membresia::where('id_tenant', $tenant->id_tenant)->where('estado', 'activa')->count(),
+                'estado_suscripcion' => $tenant->suscripcionActual?->estado ?? 'sin_suscripcion',
+                'fecha_fin_periodo_actual' => $tenant->suscripcionActual?->fecha_fin_periodo_actual,
+                'cancela_al_final_periodo' => (bool) ($tenant->suscripcionActual?->cancela_al_final_periodo ?? false),
             ] : null,
             'membresias' => Membresia::where('membresias.id_usuario', $user->id_usuario)
                 ->where('membresias.estado', 'activa')

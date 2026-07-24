@@ -19,6 +19,7 @@
             'estado',
             'id_tiponegocio',
             'id_plan',
+            'stripe_customer_id',
             'moneda',
             'sector',
             'idioma',
@@ -43,8 +44,18 @@
             return $this->belongsTo(Negocio::class, 'id_tiponegocio', 'id_tiponegocio');
         }
             public function plan():BelongsTo
-        {   
+        {
             return $this->belongsTo(Plan::class, 'id_plan', 'id_plan');
+        }
+
+        public function suscripciones()
+        {
+            return $this->hasMany(Suscripcion::class, 'id_tenant', 'id_tenant');
+        }
+
+        public function suscripcionActual()
+        {
+            return $this->hasOne(Suscripcion::class, 'id_tenant', 'id_tenant')->latestOfMany('created_at');
         }
 
         public function categorias(){
