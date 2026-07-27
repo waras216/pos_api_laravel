@@ -26,12 +26,14 @@ class Usuarios extends Authenticatable
         'nombre',
         'email',
         'password',
+        'pin',
         'foto_perfil',
         'estado',
     ];
 
     protected $hidden = [
         'password',
+        'pin',
     ];
 
     public function usuarios()

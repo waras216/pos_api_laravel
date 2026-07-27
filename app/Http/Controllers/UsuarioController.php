@@ -8,6 +8,8 @@ use App\Models\Usuarios;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 
 class UsuarioController extends Controller
 {
@@ -18,6 +20,16 @@ class UsuarioController extends Controller
     {
         $idTenant = $request->user()->id_tenant;
         $idsAdmin = Rol::idsAdminTenant($idTenant);
+
+        // Roles no-admin por usuario (el de admin ya se muestra aparte con
+        // es_admin), para poder mostrar un indicador de a qué tiene acceso.
+        $rolesPorUsuario = DB::table('usuario_rol')
+            ->join('roles', 'roles.id_rol', '=', 'usuario_rol.id_rol')
+            ->where('usuario_rol.id_tenant', $idTenant)
+            ->where('roles.clave', '!=', 'tenant.admin')
+            ->select('usuario_rol.id_usuario', 'roles.nombre')
+            ->get()
+            ->groupBy('id_usuario');
 
         $usuarios = Membresia::where('membresias.id_tenant', $idTenant)
             ->where('membresias.estado', 'activa')
@@ -31,9 +43,10 @@ class UsuarioController extends Controller
                 'usuarios.created_at',
                 'membresias.es_owner',
             ])
-            ->map(function ($u) use ($idsAdmin) {
+            ->map(function ($u) use ($idsAdmin, $rolesPorUsuario) {
                 $data = $u->toArray();
                 $data['es_admin'] = in_array($u->id_usuario, $idsAdmin);
+                $data['roles'] = ($rolesPorUsuario[$u->id_usuario] ?? collect())->pluck('nombre')->values()->all();
                 return $data;
             });
 
@@ -56,16 +69,32 @@ class UsuarioController extends Controller
 
         $data = $request->validate([
             'nombre' => 'required|string|max:100',
-            'email' => 'required|email',
-            'password' => 'required|min:6',
+            // Correo y contraseña ya no son obligatorios: un cajero puede
+            // darse de alta solo con nombre + PIN, sin correo (entra por
+            // /pin-login). Si sí se da correo, la contraseña es obligatoria.
+            'email' => 'nullable|email',
+            'password' => 'nullable|min:6',
             'es_admin' => 'sometimes|boolean',
+            'id_rol' => ['nullable', 'integer', Rule::exists('roles', 'id_rol')->where('id_tenant', $idTenant)],
+            'pin' => 'nullable|digits_between:4,8',
         ]);
+
+        if (empty($data['email']) && empty($data['pin'])) {
+            return response()->json(['message' => 'Ponle un correo o un PIN, si no este usuario no va a poder entrar'], 422);
+        }
+        if (! empty($data['email']) && empty($data['password'])) {
+            return response()->json(['message' => 'La contraseña es obligatoria si le pones un correo'], 422);
+        }
 
         $esAdmin = $data['es_admin'] ?? false;
 
         // Si el email ya pertenece a un usuario de STRATo, lo sumamos como
-        // segunda membresía en vez de crear una identidad duplicada.
-        $usuario = Usuarios::where('email', $data['email'])->first();
+        // segunda membresía en vez de crear una identidad duplicada. Por
+        // seguridad NO tocamos su nombre/password existentes solo porque
+        // otro tenant lo esté invitando con datos distintos. Sin correo
+        // (cajero) no hay nada que buscar: siempre es identidad nueva.
+        $usuario = ! empty($data['email']) ? Usuarios::where('email', $data['email'])->first() : null;
+        $cuentaExistente = (bool) $usuario;
 
         if ($usuario) {
             if (Membresia::where('id_usuario', $usuario->id_usuario)->where('id_tenant', $idTenant)->exists()) {
@@ -75,8 +104,12 @@ class UsuarioController extends Controller
             $usuario = Usuarios::create([
                 'id_tenant' => $idTenant,
                 'nombre' => $data['nombre'],
-                'email' => $data['email'],
-                'password' => Hash::make($data['password']),
+                'email' => $data['email'] ?? null,
+                // Sin correo no hay password real que usar -- se guarda un
+                // hash de algo aleatorio que nadie puede escribir, así el
+                // login por PIN queda como única puerta de entrada.
+                'password' => Hash::make($data['password'] ?? Str::random(40)),
+                'pin' => ! empty($data['pin']) ? Hash::make($data['pin']) : null,
             ]);
         }
 
@@ -91,15 +124,18 @@ class UsuarioController extends Controller
 
         if ($esAdmin) {
             Rol::asignarTenantAdmin($usuario->id_usuario, $idTenant, $request->user()->id_usuario);
+        } elseif (! empty($data['id_rol'])) {
+            Rol::asignarRol($usuario->id_usuario, $idTenant, $data['id_rol'], $request->user()->id_usuario);
         } else {
-            // Rol por defecto (todos los permisos) para que un miembro
-            // recién invitado no quede sin acceso a nada.
+            // Sin rol elegido: rol por defecto (todos los permisos) para que
+            // un miembro recién invitado no quede sin acceso a nada.
             Rol::asignarMiembro($usuario->id_usuario, $idTenant, $request->user()->id_usuario);
         }
 
         $respuesta = $usuario->toArray();
         unset($respuesta['es_superadmin']);
         $respuesta['es_admin'] = $esAdmin;
+        $respuesta['cuenta_existente'] = $cuentaExistente;
 
         return response()->json($respuesta, 201);
     }
@@ -118,6 +154,7 @@ class UsuarioController extends Controller
             'nombre' => 'sometimes|string|max:100',
             'email' => 'sometimes|email|unique:usuarios,email,' . $usuario->id_usuario . ',id_usuario',
             'password' => 'nullable|min:6',
+            'pin' => 'nullable|digits_between:4,8',
             'es_admin' => 'sometimes|boolean',
             'estado' => 'sometimes|string|in:activo,ocupado,suspendido',
         ]);
@@ -143,6 +180,12 @@ class UsuarioController extends Controller
             $data['password'] = Hash::make($data['password']);
         } else {
             unset($data['password']);
+        }
+
+        if (! empty($data['pin'])) {
+            $data['pin'] = Hash::make($data['pin']);
+        } else {
+            unset($data['pin']);
         }
 
         $usuario->update($data);

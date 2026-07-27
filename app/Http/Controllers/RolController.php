@@ -117,10 +117,7 @@ class RolController extends Controller
 
         Membresia::where('id_usuario', $idUsuario)->where('id_tenant', $idTenant)->firstOrFail();
 
-        \Illuminate\Support\Facades\DB::table('usuario_rol')->updateOrInsert(
-            ['id_usuario' => $idUsuario, 'id_tenant' => $idTenant, 'id_rol' => $rol->id_rol],
-            ['asignado_por' => $request->user()->id_usuario, 'asignado_en' => now(), 'created_at' => now(), 'updated_at' => now()]
-        );
+        Rol::asignarRol((int) $idUsuario, $idTenant, $rol->id_rol, $request->user()->id_usuario);
 
         return response()->json(['message' => 'Rol asignado']);
     }

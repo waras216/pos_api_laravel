@@ -88,6 +88,14 @@ class Rol extends Model
         );
     }
 
+    public static function asignarRol(int $idUsuario, int $idTenant, int $idRol, ?int $asignadoPor = null): void
+    {
+        DB::table('usuario_rol')->updateOrInsert(
+            ['id_usuario' => $idUsuario, 'id_tenant' => $idTenant, 'id_rol' => $idRol],
+            ['asignado_por' => $asignadoPor, 'asignado_en' => now(), 'created_at' => now(), 'updated_at' => now()]
+        );
+    }
+
     public static function revocarTenantAdmin(int $idUsuario, int $idTenant): void
     {
         $rol = self::where('id_tenant', $idTenant)->where('clave', 'tenant.admin')->first();

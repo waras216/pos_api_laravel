@@ -72,6 +72,8 @@ Route::macro('permisoResourceSinVer', function (string $uri, string $controller,
 });
 
  Route::post('/login',[AuthController::class, 'login']);
+ Route::get('/pin-login/usuarios', [AuthController::class, 'pinUsuarios']);
+ Route::post('/pin-login', [AuthController::class, 'pinLogin'])->middleware('throttle:8,1');
  Route::post('/register',[AuthController::class, 'register']);
  Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
  Route::post('/reset-password', [AuthController::class, 'resetPassword']);
@@ -146,6 +148,7 @@ Route::macro('permisoResourceSinVer', function (string $uri, string $controller,
 
             // Suscripción del tenant activo (Stripe Checkout + Billing Portal)
             Route::get('suscripcion', [SuscripcionController::class, 'show']);
+            Route::get('suscripcion/planes', [SuscripcionController::class, 'planes']);
             Route::post('suscripcion/checkout', [SuscripcionController::class, 'checkout']);
             Route::post('suscripcion/portal', [SuscripcionController::class, 'portal']);
         });

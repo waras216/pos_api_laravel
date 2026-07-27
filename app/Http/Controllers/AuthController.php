@@ -49,7 +49,75 @@ class AuthController extends Controller
             'token' => $token
         ]);
     }
-    
+
+    /**
+     * Lista de cajeros (con PIN configurado) del tenant recordado en este
+     * dispositivo, para que el login por PIN primero pida elegir quién eres
+     * y luego el PIN -- en vez de un PIN "ciego" contra todo el tenant.
+     */
+    public function pinUsuarios(Request $request)
+    {
+        $data = $request->validate([
+            'id_tenant' => 'required|integer|exists:tenants,id_tenant',
+        ]);
+
+        $idsUsuarios = Membresia::where('id_tenant', $data['id_tenant'])
+            ->where('estado', 'activa')
+            ->pluck('id_usuario');
+
+        $usuarios = Usuarios::whereIn('id_usuario', $idsUsuarios)
+            ->whereNotNull('pin')
+            ->orderBy('nombre')
+            ->get(['id_usuario', 'nombre']);
+
+        return response()->json($usuarios);
+    }
+
+    /**
+     * Login rápido por PIN (sin correo), para cajeros en un dispositivo que
+     * ya tiene un tenant recordado (ver mis-empresas / login normal previo).
+     * El frontend ya hizo elegir el usuario en pinUsuarios() arriba, así que
+     * acá solo se valida el PIN de ese usuario puntual (no un PIN "ciego"
+     * contra todos los del tenant).
+     */
+    public function pinLogin(Request $request)
+    {
+        $data = $request->validate([
+            'id_tenant' => 'required|integer|exists:tenants,id_tenant',
+            'id_usuario' => 'required|integer',
+            'pin' => 'required|string|min:4|max:8',
+        ]);
+
+        $pertenece = Membresia::where('id_tenant', $data['id_tenant'])
+            ->where('id_usuario', $data['id_usuario'])
+            ->where('estado', 'activa')
+            ->exists();
+
+        $usuario = $pertenece ? Usuarios::find($data['id_usuario']) : null;
+
+        if (! $usuario || ! $usuario->pin || ! Hash::check($data['pin'], $usuario->pin)) {
+            return response()->json(['message' => 'PIN incorrecto'], 400);
+        }
+
+        $tenant = \App\Models\Tenant::find($data['id_tenant']);
+        if ($tenant && $tenant->estado !== 'activo') {
+            return response()->json(['message' => 'Tu empresa fue suspendida. Contacta a soporte.'], 403);
+        }
+
+        if ($usuario->estado === 'suspendido') {
+            return response()->json(['message' => 'Tu cuenta fue suspendida. Contacta a un administrador.'], 403);
+        }
+
+        $usuario->update(['id_tenant' => $data['id_tenant']]);
+
+        $token = $usuario->createToken('api_token')->plainTextToken;
+
+        return response()->json([
+            'user' => $this->serializeUser($usuario->fresh()),
+            'token' => $token,
+        ]);
+    }
+
     public function register(Request $request){
         $data = $request -> validate([
             'nombre' => 'required|string|max:100',
