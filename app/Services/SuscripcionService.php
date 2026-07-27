@@ -147,8 +147,10 @@ class SuscripcionService
             throw new \RuntimeException("No se pudo resolver id_tenant para la suscripción {$subscription->id}");
         }
 
-        $priceId = $subscription->items->data[0]->price->id ?? null;
+        $item = $subscription->items->data[0] ?? null;
+        $priceId = $item?->price->id ?? null;
         $plan = $priceId ? Plan::where('stripe_price_id', $priceId)->first() : null;
+        $currentPeriodEnd = $item?->current_period_end ?? $subscription->current_period_end ?? null;
 
         $suscripcion = Suscripcion::updateOrCreate(
             ['stripe_subscription_id' => $subscription->id],
@@ -158,7 +160,7 @@ class SuscripcionService
                 'stripe_price_id' => $priceId,
                 'estado' => self::MAPA_ESTADOS[$subscription->status] ?? 'incompleta',
                 'fecha_inicio' => $subscription->start_date ? now()->createFromTimestamp($subscription->start_date) : null,
-                'fecha_fin_periodo_actual' => $subscription->current_period_end ? now()->createFromTimestamp($subscription->current_period_end) : null,
+                'fecha_fin_periodo_actual' => $currentPeriodEnd ? now()->createFromTimestamp($currentPeriodEnd) : null,
                 'cancela_al_final_periodo' => (bool) $subscription->cancel_at_period_end,
                 'fecha_cancelacion' => $subscription->canceled_at ? now()->createFromTimestamp($subscription->canceled_at) : null,
                 'ultimo_evento_stripe' => $subscription->toArray(),

@@ -18,6 +18,11 @@ class SuscripcionController extends Controller
         return response()->json($tenant->suscripcionActual);
     }
 
+    public function planes()
+    {
+        return response()->json(Plan::orderBy('id_plan')->get());
+    }
+
     public function checkout(Request $request)
     {
         $data = $request->validate([
