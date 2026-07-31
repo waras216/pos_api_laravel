@@ -298,6 +298,11 @@ class AuthController extends Controller
             'nichoData' => $nichoData,
             'es_admin' => $esAdmin,
             'es_superadmin' => $esSuperadmin,
+            // Un "cajero" en este código es un usuario sin correo (ver
+            // UsuarioController::store) que solo entra por PIN -- ese
+            // dispositivo/identidad nunca tiene por qué ver CRM/ERP, solo la
+            // terminal de venta. No aplica si además es admin/superadmin.
+            'soloPos' => is_null($user->email) && !$esAdmin && !$esSuperadmin,
             // Claves de permiso granular ("recurso.accion") del usuario en el
             // tenant activo. ['*'] significa "todo permitido" (admin/superadmin).
             'permisos' => ($esAdmin || $esSuperadmin)
