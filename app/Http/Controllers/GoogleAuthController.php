@@ -8,20 +8,18 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Laravel\Socialite\Facades\Socialite;
 
-class Auth0Controller extends Controller
+class GoogleAuthController extends Controller
 {
     public function redirect()
     {
-        // Sin este parámetro, Auth0 muestra su propia pantalla de Universal
-        // Login (con opción de email/password) antes de llegar a Google.
-        return Socialite::driver('auth0')->with(['connection' => 'google-oauth2'])->redirect();
+        return Socialite::driver('google')->redirect();
     }
 
     public function callback()
     {
-        $auth0User = Socialite::driver('auth0')->user();
+        $googleUser = Socialite::driver('google')->user();
 
-        $email = $auth0User->getEmail();
+        $email = $googleUser->getEmail();
         if (!$email) {
             return $this->redirectToFrontend(null, 'No pudimos obtener tu correo desde el proveedor social.');
         }
@@ -29,9 +27,9 @@ class Auth0Controller extends Controller
         $user = Usuarios::where('email', $email)->first();
 
         if (!$user) {
-            $nombre = $auth0User->getName() ?: $auth0User->getNickname() ?: explode('@', $email)[0];
+            $nombre = $googleUser->getName() ?: $googleUser->getNickname() ?: explode('@', $email)[0];
 
-            // Los usuarios que entran por Auth0/redes no eligen contraseña
+            // Los usuarios que entran por Google/redes no eligen contraseña
             // propia; se genera una aleatoria e inutilizable solo para
             // satisfacer la columna NOT NULL -- el login por password nunca
             // la va a usar.

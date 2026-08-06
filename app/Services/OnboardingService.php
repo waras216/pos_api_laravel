@@ -22,7 +22,7 @@ class OnboardingService
      * vez: crea el Tenant, la membresía de owner/admin, los pipelines por
      * defecto y el catálogo inicial de integraciones. Usado tanto por el
      * registro con email/password (AuthController) como por el alta vía
-     * proveedores sociales (Auth0Controller) para que ambos flujos de
+     * proveedores sociales (GoogleAuthController) para que ambos flujos de
      * onboarding se mantengan idénticos.
      */
     public function provisionarTenantYUsuario(string $nombre, string $email, string $passwordHash): Usuarios
