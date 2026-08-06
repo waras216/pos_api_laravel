@@ -25,14 +25,15 @@ class CategoriaController extends Controller
     public function store(Request $request)
     {
         $data = $request ->validate([
-            'id_tenant' => 'required|exists:tenants,id_tenant',
             'nombre' => 'required|string|max:100',
             'descripcion' => 'nullable|string|max:255',
         ]);
 
+        $data['id_tenant'] = $request->user()->id_tenant;
+
         $categoria = Categoria::create($data);
 
-        return response()->json($categoria,201);        
+        return response()->json($categoria,201);
     }
 
     /**
