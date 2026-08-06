@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Erp\MovimientoStock;
 use App\Models\Producto;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 
 class InventarioController extends Controller
 {
@@ -25,6 +26,7 @@ class InventarioController extends Controller
             'nombre' => 'required|string|max:150',
             'id_categorias' => 'required|exists:categorias,id_categoria',
             'descripcion' => 'nullable|string|max:350',
+            'imagen' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:2048',
             'sku' => 'nullable|string|max:100',
             'stock' => 'required|integer|min:0',
             'stock_minimo' => 'nullable|integer|min:0',
@@ -33,6 +35,10 @@ class InventarioController extends Controller
         ]);
 
         $data['id_tenant'] = $request->user()->id_tenant;
+
+        if ($request->hasFile('imagen')) {
+            $data['imagen'] = $request->file('imagen')->store('productos', 'public');
+        }
 
         return response()->json(Producto::create($data)->load('categoria'), 201);
     }
@@ -129,6 +135,38 @@ class InventarioController extends Controller
     {
         $item = Producto::onlyTrashed()->where('id_tenant', $request->user()->id_tenant)->findOrFail($id);
         $item->restore();
+
+        return response()->json($item->load('categoria'));
+    }
+
+    public function subirFoto(Request $request, string $id)
+    {
+        $item = Producto::where('id_tenant', $request->user()->id_tenant)->findOrFail($id);
+
+        $request->validate([
+            'imagen' => 'required|image|mimes:jpg,jpeg,png,webp|max:2048',
+        ]);
+
+        if ($item->imagen) {
+            Storage::disk('public')->delete($item->imagen);
+        }
+
+        $item->update([
+            'imagen' => $request->file('imagen')->store('productos', 'public'),
+        ]);
+
+        return response()->json($item->load('categoria'));
+    }
+
+    public function eliminarFoto(Request $request, string $id)
+    {
+        $item = Producto::where('id_tenant', $request->user()->id_tenant)->findOrFail($id);
+
+        if ($item->imagen) {
+            Storage::disk('public')->delete($item->imagen);
+        }
+
+        $item->update(['imagen' => null]);
 
         return response()->json($item->load('categoria'));
     }

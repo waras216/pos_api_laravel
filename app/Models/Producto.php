@@ -19,6 +19,7 @@ class Producto extends Model
         'id_categorias',
         'nombre',
         'descripcion',
+        'imagen',
         'precio',
         'precio_compra',
         'stock',
@@ -26,6 +27,13 @@ class Producto extends Model
         'sku',
         'activo'
     ];
+
+    protected $appends = ['imagen_url'];
+
+    public function getImagenUrlAttribute(): ?string
+    {
+        return $this->imagen ? \Storage::disk('public')->url($this->imagen) : null;
+    }
 
     public function categoria(){
         return $this->belongsTo(Categoria::class, 'id_categorias', 'id_categoria');

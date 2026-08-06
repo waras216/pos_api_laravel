@@ -205,6 +205,8 @@ Route::macro('permisoResourceSinVer', function (string $uri, string $controller,
             Route::permisoResourceSinVer('inventario', InventarioController::class, 'erp_inventario');
             Route::post('inventario/{id}/ajuste', [InventarioController::class, 'ajustarStock'])->middleware('permiso:erp_inventario.editar');
             Route::get('inventario/{id}/movimientos', [InventarioController::class, 'movimientos']);
+            Route::post('inventario/{id}/foto', [InventarioController::class, 'subirFoto'])->middleware('permiso:erp_inventario.editar');
+            Route::delete('inventario/{id}/foto', [InventarioController::class, 'eliminarFoto'])->middleware('permiso:erp_inventario.editar');
 
             Route::get('proveedores/papelera', [ProveedorController::class, 'papelera'])->middleware('permiso:erp_proveedores.eliminar');
             Route::patch('proveedores/{id}/restaurar', [ProveedorController::class, 'restaurar'])->middleware('permiso:erp_proveedores.eliminar');
