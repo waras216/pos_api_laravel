@@ -111,7 +111,7 @@ Route::macro('permisoResourceSinVer', function (string $uri, string $controller,
  // un token Sanctum, no Passport. Las rutas /auth/web-session, /auth/token,
  // /auth/refresh y /oauth/whoami de arriba quedan intactas para retomar
  // la migración cuando el frontend implemente el flujo OAuth2 PKCE.
- Route::middleware('auth:sanctum')->group(function(){
+ Route::middleware(['sesion.inactiva', 'auth:sanctum'])->group(function(){
     Route::get('/user', [AuthController::class, 'me']);
     Route::put('perfil', [AuthController::class, 'actualizarPerfil']);
     Route::patch('perfil/estado', [AuthController::class, 'actualizarEstado']);

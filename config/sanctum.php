@@ -51,6 +51,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Inactivity Timeout (minutos)
+    |--------------------------------------------------------------------------
+    |
+    | A diferencia de "expiration" (TTL fijo desde la creación), esto expira
+    | un token si no se usó en N minutos -- ver App\Http\Middleware\
+    | ExpirarSesionInactiva, que corre antes de auth:sanctum.
+    |
+    */
+
+    'inactivity_timeout_minutes' => (int) env('SANCTUM_INACTIVITY_TIMEOUT_MINUTES', 60),
+
+    /*
+    |--------------------------------------------------------------------------
     | Token Prefix
     |--------------------------------------------------------------------------
     |
