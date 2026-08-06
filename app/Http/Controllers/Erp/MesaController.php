@@ -11,6 +11,7 @@ use App\Models\Erp\Pedido;
 use App\Models\Erp\PedidoItem;
 use App\Models\Producto;
 use App\Services\Erp\AsientoService;
+use App\Services\Erp\PagoVentaService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -18,7 +19,7 @@ use Illuminate\Validation\ValidationException;
 
 class MesaController extends Controller
 {
-    public function __construct(private AsientoService $asientos) {}
+    public function __construct(private AsientoService $asientos, private PagoVentaService $pagos) {}
 
     private function mesaDelTenant(Request $request, string $id): Mesa
     {
@@ -203,6 +204,9 @@ class MesaController extends Controller
                 'required',
                 Rule::exists('clientes', 'id_cliente')->where('id_tenant', $idTenant),
             ],
+            'pagos' => 'required|array',
+            'pagos.*.metodo_pago' => ['required_with:pagos', Rule::in(PagoVentaService::METODOS)],
+            'pagos.*.monto' => 'required_with:pagos|numeric|min:0.01',
         ]);
 
         $pedido = DB::transaction(function () use ($comanda, $data, $idTenant, $mesa) {
@@ -260,13 +264,16 @@ class MesaController extends Controller
 
             $pedido->update(['total' => $total]);
 
+            $this->pagos->validar($data['pagos'], $total);
+            $this->pagos->crear($pedido, $data['pagos']);
+
             $comanda->update(['estado' => 'cerrada']);
             $mesa->update(['estado' => 'libre', 'mesero' => null]);
 
             return $pedido;
         });
 
-        $this->asientos->registrarVenta($pedido->load('items'));
+        $this->asientos->registrarVenta($pedido->load(['items', 'pagos']));
 
         return response()->json([
             'mesa' => $this->conRelaciones($mesa->fresh()),

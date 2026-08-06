@@ -8,6 +8,7 @@ use App\Models\Erp\Pedido;
 use App\Models\Erp\PedidoItem;
 use App\Models\Producto;
 use App\Services\Erp\AsientoService;
+use App\Services\Erp\PagoVentaService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -15,7 +16,7 @@ use Illuminate\Validation\ValidationException;
 
 class PedidoController extends Controller
 {
-    public function __construct(private AsientoService $asientos) {}
+    public function __construct(private AsientoService $asientos, private PagoVentaService $pagos) {}
 
     public function index(Request $request)
     {
@@ -44,6 +45,9 @@ class PedidoController extends Controller
             'items.*.cantidad' => 'required|integer|min:1',
             'items.*.precio_unitario' => 'required|numeric|min:0',
             'estado' => 'nullable|in:pendiente,enviado,facturado',
+            'pagos' => 'required_if:estado,facturado|array',
+            'pagos.*.metodo_pago' => ['required_with:pagos', Rule::in(PagoVentaService::METODOS)],
+            'pagos.*.monto' => 'required_with:pagos|numeric|min:0.01',
         ]);
 
         $pedido = DB::transaction(function () use ($data, $idTenant) {
@@ -99,11 +103,16 @@ class PedidoController extends Controller
 
             $pedido->update(['total' => $total]);
 
+            if ($pedido->estado === 'facturado') {
+                $this->pagos->validar($data['pagos'], $total);
+                $this->pagos->crear($pedido, $data['pagos']);
+            }
+
             return $pedido;
         });
 
         if ($pedido->estado === 'facturado') {
-            $this->asientos->registrarVenta($pedido->load('items'));
+            $this->asientos->registrarVenta($pedido->load(['items', 'pagos']));
         }
 
         return response()->json($pedido->load(['cliente', 'items.producto']), 201);
@@ -126,15 +135,22 @@ class PedidoController extends Controller
             return response()->json(['message' => 'El pedido está cancelado'], 422);
         }
 
+        $vaAFacturarse = $pedido->estado !== 'facturado' && $request->input('estado') === 'facturado';
+
         $data = $request->validate([
             'estado' => 'required|in:pendiente,enviado,facturado',
+            'pagos' => [Rule::requiredIf($vaAFacturarse), 'array'],
+            'pagos.*.metodo_pago' => ['required_with:pagos', Rule::in(PagoVentaService::METODOS)],
+            'pagos.*.monto' => 'required_with:pagos|numeric|min:0.01',
         ]);
 
         $estadoAnterior = $pedido->estado;
-        $pedido->update($data);
+        $pedido->update(['estado' => $data['estado']]);
 
         if ($pedido->estado === 'facturado' && $estadoAnterior !== 'facturado') {
-            $this->asientos->registrarVenta($pedido->load('items'));
+            $this->pagos->validar($data['pagos'], $pedido->total);
+            $this->pagos->crear($pedido, $data['pagos']);
+            $this->asientos->registrarVenta($pedido->load(['items', 'pagos']));
         }
 
         return response()->json($pedido->load(['cliente', 'items.producto']));

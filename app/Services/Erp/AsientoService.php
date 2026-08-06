@@ -81,9 +81,11 @@ class AsientoService
 
     /**
      * Reconoce el ingreso y el costo de una venta facturada:
-     * Debe Caja + Costo de Mercancía Vendida, Haber Ingresos por Ventas + Inventario.
-     * No genera nada si ya existe un asiento con esta referencia (evita duplicar
-     * si el mismo pedido se procesa más de una vez por error).
+     * Debe Caja/Bancos/Tarjeta por Cobrar (una línea por cada pago del
+     * pedido, según su método) + Costo de Mercancía Vendida, Haber Ingresos
+     * por Ventas + Inventario. No genera nada si ya existe un asiento con
+     * esta referencia (evita duplicar si el mismo pedido se procesa más de
+     * una vez por error).
      */
     public function registrarVenta(Pedido $pedido): ?Asiento
     {
@@ -97,10 +99,17 @@ class AsientoService
             2
         );
 
-        $lineas = [
-            ['id_cuenta' => $this->cuentas->cuenta($idTenant, PlanCuentasService::CAJA)->id, 'debe' => $pedido->total, 'descripcion' => "Cobro pedido #{$pedido->id}"],
-            ['id_cuenta' => $this->cuentas->cuenta($idTenant, PlanCuentasService::INGRESOS_VENTAS)->id, 'haber' => $pedido->total, 'descripcion' => "Venta pedido #{$pedido->id}"],
-        ];
+        $lineas = [];
+
+        foreach ($pedido->pagos as $pago) {
+            $lineas[] = [
+                'id_cuenta' => $this->cuentas->cuenta($idTenant, $this->cuentaParaMetodoPago($pago->metodo_pago))->id,
+                'debe' => $pago->monto,
+                'descripcion' => "Cobro pedido #{$pedido->id} ({$pago->metodo_pago})",
+            ];
+        }
+
+        $lineas[] = ['id_cuenta' => $this->cuentas->cuenta($idTenant, PlanCuentasService::INGRESOS_VENTAS)->id, 'haber' => $pedido->total, 'descripcion' => "Venta pedido #{$pedido->id}"];
 
         if ($costoTotal > 0) {
             $lineas[] = ['id_cuenta' => $this->cuentas->cuenta($idTenant, PlanCuentasService::COSTO_MERCANCIA_VENDIDA)->id, 'debe' => $costoTotal, 'descripcion' => "Costo de venta pedido #{$pedido->id}"];
@@ -185,6 +194,15 @@ class AsientoService
             referenciaId: $asiento->id,
             idUsuario: $idUsuario,
         );
+    }
+
+    private function cuentaParaMetodoPago(string $metodoPago): string
+    {
+        return match ($metodoPago) {
+            'efectivo' => PlanCuentasService::CAJA,
+            'tarjeta_debito' => PlanCuentasService::BANCOS,
+            'tarjeta_credito' => PlanCuentasService::TARJETA_POR_COBRAR,
+        };
     }
 
     private function existeAsientoPara(string $referenciaTipo, int $referenciaId): bool

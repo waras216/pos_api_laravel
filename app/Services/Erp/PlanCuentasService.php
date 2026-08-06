@@ -14,6 +14,10 @@ class PlanCuentasService
 
     public const INVENTARIO = '1300';
 
+    public const BANCOS = '1150';
+
+    public const TARJETA_POR_COBRAR = '1250';
+
     public const CUENTAS_POR_PAGAR = '2100';
 
     public const NOMINA_POR_PAGAR = '2200';
@@ -40,6 +44,8 @@ class PlanCuentasService
         ['codigo' => self::CAJA, 'nombre' => 'Caja y Bancos', 'tipo' => 'activo', 'naturaleza' => 'deudora', 'padre' => '1000'],
         ['codigo' => self::CUENTAS_POR_COBRAR, 'nombre' => 'Cuentas por Cobrar Clientes', 'tipo' => 'activo', 'naturaleza' => 'deudora', 'padre' => '1000'],
         ['codigo' => self::INVENTARIO, 'nombre' => 'Inventario', 'tipo' => 'activo', 'naturaleza' => 'deudora', 'padre' => '1000'],
+        ['codigo' => self::BANCOS, 'nombre' => 'Bancos', 'tipo' => 'activo', 'naturaleza' => 'deudora', 'padre' => '1000'],
+        ['codigo' => self::TARJETA_POR_COBRAR, 'nombre' => 'Tarjeta por Cobrar', 'tipo' => 'activo', 'naturaleza' => 'deudora', 'padre' => '1000'],
         ['codigo' => self::CUENTAS_POR_PAGAR, 'nombre' => 'Cuentas por Pagar Proveedores', 'tipo' => 'pasivo', 'naturaleza' => 'acreedora', 'padre' => '2000'],
         ['codigo' => self::NOMINA_POR_PAGAR, 'nombre' => 'Nómina por Pagar', 'tipo' => 'pasivo', 'naturaleza' => 'acreedora', 'padre' => '2000'],
         ['codigo' => '3100', 'nombre' => 'Capital Social', 'tipo' => 'capital', 'naturaleza' => 'acreedora', 'padre' => '3000'],
