@@ -85,9 +85,14 @@ class OnboardingService
     {
         if ($nicho === 'hotel' && ! empty($datosNicho['hotelHabitaciones'])) {
             $cantidad = (int) $datosNicho['hotelHabitaciones'];
+            $tipos = array_values(array_filter($datosNicho['hotelTiposHabitacion'] ?? []));
             if ($cantidad > 0 && ! Habitacion::withoutGlobalScopes()->where('id_tenant', $tenant->id_tenant)->exists()) {
                 for ($i = 1; $i <= $cantidad; $i++) {
-                    Habitacion::create(['id_tenant' => $tenant->id_tenant, 'numero' => $i]);
+                    $datos = ['id_tenant' => $tenant->id_tenant, 'numero' => $i];
+                    if (! empty($tipos)) {
+                        $datos['tipo'] = $tipos[($i - 1) % count($tipos)];
+                    }
+                    Habitacion::create($datos);
                 }
             }
         }

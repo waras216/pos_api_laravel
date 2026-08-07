@@ -33,6 +33,8 @@ class TenantController extends Controller
             'modulos.erp' => 'required|boolean',
             'datos_nicho' => 'nullable|array',
             'datos_nicho.hotelHabitaciones' => 'nullable|integer|min:1|max:200',
+            'datos_nicho.hotelTiposHabitacion' => 'nullable|array',
+            'datos_nicho.hotelTiposHabitacion.*' => 'string|max:40',
             'datos_nicho.restMesas' => 'nullable|integer|min:1|max:200',
         ]);
 

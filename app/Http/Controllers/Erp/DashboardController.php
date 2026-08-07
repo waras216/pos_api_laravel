@@ -23,8 +23,9 @@ class DashboardController extends Controller
 {
     // Mismo criterio que ERP_TABS_OCULTOS_POR_NICHO en module.service.ts
     // (frontend) — mantener sincronizados.
-    private const NICHOS_SIN_FABRICACION = ['restaurante', 'hotel', 'farmacia', 'tienda', 'startup'];
-    private const NICHOS_SIN_SCM = ['restaurante', 'hotel', 'farmacia', 'startup'];
+    private const NICHOS_SIN_FABRICACION = ['restaurante', 'hotel', 'farmacia', 'tienda', 'almacen', 'startup'];
+    private const NICHOS_SIN_SCM = ['restaurante', 'hotel', 'farmacia', 'tienda', 'startup'];
+    private const NICHOS_SIN_PROYECTOS = ['restaurante', 'hotel', 'farmacia', 'tienda', 'almacen'];
     private const NICHOS_SIN_COMPRAS_INVENTARIO = ['startup'];
 
     public function resumen(Request $request)
@@ -86,6 +87,10 @@ class DashboardController extends Controller
         }
         if (in_array($nicho, self::NICHOS_SIN_SCM, true)) {
             $modulos = array_values(array_filter($modulos, fn ($m) => $m['titulo'] !== 'SCM'));
+        }
+        if (in_array($nicho, self::NICHOS_SIN_PROYECTOS, true)) {
+            $modulos = array_values(array_filter($modulos, fn ($m) => $m['titulo'] !== 'Proyectos'));
+            $kpis = array_values(array_filter($kpis, fn ($k) => $k['label'] !== 'Proyectos Activos'));
         }
         if (in_array($nicho, self::NICHOS_SIN_COMPRAS_INVENTARIO, true)) {
             $modulos = array_values(array_filter($modulos, fn ($m) => ! in_array($m['titulo'], ['Compras', 'Inventario'], true)));
