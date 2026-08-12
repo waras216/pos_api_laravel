@@ -51,11 +51,11 @@ class AuthController extends Controller
     }
 
     /**
-     * Lista de cajeros (con PIN configurado) del tenant recordado en este
-     * dispositivo, para que el login por PIN primero pida elegir quién eres
-     * y luego el PIN -- en vez de un PIN "ciego" contra todo el tenant.
+     * Lista de cajeros (con 2FA configurado) del tenant recordado en este
+     * dispositivo, para que el login rápido primero pida elegir quién eres
+     * y luego el código -- en vez de un código "ciego" contra todo el tenant.
      */
-    public function pinUsuarios(Request $request)
+    public function dosFaUsuarios(Request $request)
     {
         $data = $request->validate([
             'id_tenant' => 'required|integer|exists:tenants,id_tenant',
@@ -66,7 +66,7 @@ class AuthController extends Controller
             ->pluck('id_usuario');
 
         $usuarios = Usuarios::whereIn('id_usuario', $idsUsuarios)
-            ->whereNotNull('pin')
+            ->whereNotNull('google2fa_secret')
             ->orderBy('nombre')
             ->get(['id_usuario', 'nombre']);
 
@@ -74,18 +74,18 @@ class AuthController extends Controller
     }
 
     /**
-     * Login rápido por PIN (sin correo), para cajeros en un dispositivo que
+     * Login rápido por 2FA (sin correo), para cajeros en un dispositivo que
      * ya tiene un tenant recordado (ver mis-empresas / login normal previo).
-     * El frontend ya hizo elegir el usuario en pinUsuarios() arriba, así que
-     * acá solo se valida el PIN de ese usuario puntual (no un PIN "ciego"
-     * contra todos los del tenant).
+     * El frontend ya hizo elegir el usuario en dosFaUsuarios() arriba, así
+     * que acá solo se valida el código TOTP de ese usuario puntual (no un
+     * código "ciego" contra todos los del tenant).
      */
-    public function pinLogin(Request $request)
+    public function dosFaLogin(Request $request)
     {
         $data = $request->validate([
             'id_tenant' => 'required|integer|exists:tenants,id_tenant',
             'id_usuario' => 'required|integer',
-            'pin' => 'required|string|min:4|max:8',
+            'codigo' => 'required|digits:6',
         ]);
 
         $pertenece = Membresia::where('id_tenant', $data['id_tenant'])
@@ -95,8 +95,9 @@ class AuthController extends Controller
 
         $usuario = $pertenece ? Usuarios::find($data['id_usuario']) : null;
 
-        if (! $usuario || ! $usuario->pin || ! Hash::check($data['pin'], $usuario->pin)) {
-            return response()->json(['message' => 'PIN incorrecto'], 400);
+        if (! $usuario || ! $usuario->google2fa_secret
+            || ! (new \PragmaRX\Google2FA\Google2FA())->verifyKey($usuario->google2fa_secret, $data['codigo'])) {
+            return response()->json(['message' => 'Código incorrecto'], 400);
         }
 
         $tenant = \App\Models\Tenant::find($data['id_tenant']);
@@ -299,7 +300,7 @@ class AuthController extends Controller
             'es_admin' => $esAdmin,
             'es_superadmin' => $esSuperadmin,
             // Un "cajero" en este código es un usuario sin correo (ver
-            // UsuarioController::store) que solo entra por PIN -- ese
+            // UsuarioController::store) que solo entra por 2FA -- ese
             // dispositivo/identidad nunca tiene por qué ver CRM/ERP, solo la
             // terminal de venta. No aplica si además es admin/superadmin.
             'soloPos' => is_null($user->email) && !$esAdmin && !$esSuperadmin,

@@ -41,12 +41,15 @@ class UsuarioController extends Controller
                 'usuarios.email',
                 'usuarios.estado',
                 'usuarios.created_at',
+                'usuarios.google2fa_secret',
                 'membresias.es_owner',
             ])
             ->map(function ($u) use ($idsAdmin, $rolesPorUsuario) {
                 $data = $u->toArray();
                 $data['es_admin'] = in_array($u->id_usuario, $idsAdmin);
                 $data['roles'] = ($rolesPorUsuario[$u->id_usuario] ?? collect())->pluck('nombre')->values()->all();
+                $data['tiene_2fa'] = ! is_null($u->google2fa_secret);
+                unset($data['google2fa_secret']);
                 return $data;
             });
 
@@ -70,18 +73,17 @@ class UsuarioController extends Controller
         $data = $request->validate([
             'nombre' => 'required|string|max:100',
             // Correo y contraseña ya no son obligatorios: un cajero puede
-            // darse de alta solo con nombre + PIN, sin correo (entra por
-            // /pin-login). Si sí se da correo, la contraseña es obligatoria.
+            // darse de alta solo con nombre, sin correo (entra por
+            // /2fa-login, configurando su 2FA en un segundo paso vía
+            // iniciarDosFa()/confirmarDosFa() -- no puede pasarse en este
+            // mismo POST porque requiere escanear un QR). Si sí se da
+            // correo, la contraseña es obligatoria.
             'email' => 'nullable|email',
             'password' => 'nullable|min:6',
             'es_admin' => 'sometimes|boolean',
             'id_rol' => ['nullable', 'integer', Rule::exists('roles', 'id_rol')->where('id_tenant', $idTenant)],
-            'pin' => 'nullable|digits_between:4,8',
         ]);
 
-        if (empty($data['email']) && empty($data['pin'])) {
-            return response()->json(['message' => 'Ponle un correo o un PIN, si no este usuario no va a poder entrar'], 422);
-        }
         if (! empty($data['email']) && empty($data['password'])) {
             return response()->json(['message' => 'La contraseña es obligatoria si le pones un correo'], 422);
         }
@@ -107,9 +109,8 @@ class UsuarioController extends Controller
                 'email' => $data['email'] ?? null,
                 // Sin correo no hay password real que usar -- se guarda un
                 // hash de algo aleatorio que nadie puede escribir, así el
-                // login por PIN queda como única puerta de entrada.
+                // login por 2FA queda como única puerta de entrada.
                 'password' => Hash::make($data['password'] ?? Str::random(40)),
-                'pin' => ! empty($data['pin']) ? Hash::make($data['pin']) : null,
             ]);
         }
 
@@ -136,6 +137,7 @@ class UsuarioController extends Controller
         unset($respuesta['es_superadmin']);
         $respuesta['es_admin'] = $esAdmin;
         $respuesta['cuenta_existente'] = $cuentaExistente;
+        $respuesta['tiene_2fa'] = ! is_null($usuario->google2fa_secret);
 
         return response()->json($respuesta, 201);
     }
@@ -154,7 +156,6 @@ class UsuarioController extends Controller
             'nombre' => 'sometimes|string|max:100',
             'email' => 'sometimes|email|unique:usuarios,email,' . $usuario->id_usuario . ',id_usuario',
             'password' => 'nullable|min:6',
-            'pin' => 'nullable|digits_between:4,8',
             'es_admin' => 'sometimes|boolean',
             'estado' => 'sometimes|string|in:activo,ocupado,suspendido',
         ]);
@@ -182,12 +183,6 @@ class UsuarioController extends Controller
             unset($data['password']);
         }
 
-        if (! empty($data['pin'])) {
-            $data['pin'] = Hash::make($data['pin']);
-        } else {
-            unset($data['pin']);
-        }
-
         $usuario->update($data);
 
         if ($esAdminSolicitado === true) {
@@ -202,8 +197,78 @@ class UsuarioController extends Controller
         $respuesta = $usuario->toArray();
         unset($respuesta['es_superadmin']);
         $respuesta['es_admin'] = Rol::esAdminTenant($usuario->id_usuario, $idTenant);
+        $respuesta['tiene_2fa'] = ! is_null($usuario->google2fa_secret);
 
         return response()->json($respuesta);
+    }
+
+    /**
+     * Genera un secreto TOTP nuevo para este usuario y lo devuelve como QR
+     * (junto con la clave manual) para que lo escanee con una app tipo
+     * Google Authenticator. No se persiste todavía -- viaja de ida y vuelta
+     * con el frontend hasta confirmarDosFa(), para no dejar en la base
+     * secretos de un enrolamiento a medio terminar.
+     */
+    public function iniciarDosFa(Request $request, string $id)
+    {
+        $idTenant = $request->user()->id_tenant;
+        Membresia::where('id_usuario', $id)->where('id_tenant', $idTenant)->firstOrFail();
+        $usuario = Usuarios::findOrFail($id);
+
+        $google2fa = new \PragmaRX\Google2FA\Google2FA();
+        $secret = $google2fa->generateSecretKey();
+        $otpauthUrl = $google2fa->getQRCodeUrl('STRATO Hub', $usuario->nombre, $secret);
+
+        $renderer = new \BaconQrCode\Renderer\ImageRenderer(
+            new \BaconQrCode\Renderer\RendererStyle\RendererStyle(200),
+            new \BaconQrCode\Renderer\Image\SvgImageBackEnd(),
+        );
+        $qrSvg = (new \BaconQrCode\Writer($renderer))->writeString($otpauthUrl);
+
+        return response()->json([
+            'secret' => $secret,
+            'qr' => 'data:image/svg+xml;base64,' . base64_encode($qrSvg),
+        ]);
+    }
+
+    /**
+     * Confirma el enrolamiento de 2FA iniciado en iniciarDosFa(): valida un
+     * código generado con el secreto recibido y, solo si es correcto, recién
+     * ahí lo persiste (cifrado por el cast 'encrypted' del modelo).
+     */
+    public function confirmarDosFa(Request $request, string $id)
+    {
+        $idTenant = $request->user()->id_tenant;
+        Membresia::where('id_usuario', $id)->where('id_tenant', $idTenant)->firstOrFail();
+        $usuario = Usuarios::findOrFail($id);
+
+        $data = $request->validate([
+            'secret' => 'required|string',
+            'codigo' => 'required|digits:6',
+        ]);
+
+        if (! (new \PragmaRX\Google2FA\Google2FA())->verifyKey($data['secret'], $data['codigo'])) {
+            return response()->json(['message' => 'Código incorrecto'], 400);
+        }
+
+        $usuario->update(['google2fa_secret' => $data['secret']]);
+
+        return response()->json(['tiene_2fa' => true]);
+    }
+
+    /**
+     * Borra el 2FA configurado de este usuario (p. ej. perdió el teléfono),
+     * para que un admin pueda volver a enrolarlo desde cero.
+     */
+    public function restablecerDosFa(Request $request, string $id)
+    {
+        $idTenant = $request->user()->id_tenant;
+        Membresia::where('id_usuario', $id)->where('id_tenant', $idTenant)->firstOrFail();
+        $usuario = Usuarios::findOrFail($id);
+
+        $usuario->update(['google2fa_secret' => null]);
+
+        return response()->json(['tiene_2fa' => false]);
     }
 
     /**

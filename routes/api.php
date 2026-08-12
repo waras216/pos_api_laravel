@@ -72,8 +72,8 @@ Route::macro('permisoResourceSinVer', function (string $uri, string $controller,
 });
 
  Route::post('/login',[AuthController::class, 'login']);
- Route::get('/pin-login/usuarios', [AuthController::class, 'pinUsuarios']);
- Route::post('/pin-login', [AuthController::class, 'pinLogin'])->middleware('throttle:8,1');
+ Route::get('/2fa-login/usuarios', [AuthController::class, 'dosFaUsuarios']);
+ Route::post('/2fa-login', [AuthController::class, 'dosFaLogin'])->middleware('throttle:8,1');
  Route::post('/register',[AuthController::class, 'register']);
  Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
  Route::post('/reset-password', [AuthController::class, 'resetPassword']);
@@ -136,6 +136,9 @@ Route::macro('permisoResourceSinVer', function (string $uri, string $controller,
             Route::post('usuarios', [UsuarioController::class, 'store']);
             Route::put('usuarios/{id}', [UsuarioController::class, 'update']);
             Route::delete('usuarios/{id}', [UsuarioController::class, 'destroy']);
+            Route::post('usuarios/{id}/2fa/iniciar', [UsuarioController::class, 'iniciarDosFa']);
+            Route::post('usuarios/{id}/2fa/confirmar', [UsuarioController::class, 'confirmarDosFa']);
+            Route::delete('usuarios/{id}/2fa', [UsuarioController::class, 'restablecerDosFa']);
             Route::put('tenant', [TenantController::class, 'update']);
             Route::post('tenant/logo', [TenantController::class, 'subirLogo']);
             Route::delete('tenant/logo', [TenantController::class, 'eliminarLogo']);

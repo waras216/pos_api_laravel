@@ -26,14 +26,18 @@ class Usuarios extends Authenticatable
         'nombre',
         'email',
         'password',
-        'pin',
+        'google2fa_secret',
         'foto_perfil',
         'estado',
     ];
 
     protected $hidden = [
         'password',
-        'pin',
+        'google2fa_secret',
+    ];
+
+    protected $casts = [
+        'google2fa_secret' => 'encrypted',
     ];
 
     public function usuarios()
