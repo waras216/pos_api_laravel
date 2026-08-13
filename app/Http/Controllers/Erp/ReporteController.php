@@ -25,7 +25,7 @@ class ReporteController extends Controller
 
         $inventario = Producto::where('id_tenant', $idTenant)->with('categoria')->get();
 
-        $compras = OrdenCompra::where('id_tenant', $idTenant)->with('proveedor')
+        $compras = OrdenCompra::where('id_tenant', $idTenant)->with(['proveedor', 'comprador', 'items.producto'])
             ->when($desde, fn ($q) => $q->whereDate('fecha', '>=', $desde))
             ->when($hasta, fn ($q) => $q->whereDate('fecha', '<=', $hasta))
             ->get();
@@ -69,6 +69,18 @@ class ReporteController extends Controller
             'comprasPorProveedor' => $compras
                 ->groupBy(fn ($c) => $c->proveedor->nombre ?? 'Sin proveedor')
                 ->map(fn ($g) => $g->sum('total')),
+            'comprasDetalle' => $compras
+                ->sortByDesc('fecha')
+                ->map(fn ($c) => [
+                    'id' => $c->id,
+                    'fecha' => $c->fecha,
+                    'proveedor' => $c->proveedor->nombre ?? 'Sin proveedor',
+                    'comprador' => $c->comprador->nombre ?? null,
+                    'estado' => $c->estado,
+                    'items' => $c->items->count(),
+                    'total' => $c->total,
+                ])
+                ->values(),
             'ventasPorEstado' => $ventas->groupBy('estado')->map->count(),
             'movimientosPorCategoria' => $lineas->groupBy(fn ($l) => $l->cuenta->nombre)->map(fn ($g) => $g->sum($montoLinea)),
             'movimientosPorMes' => $lineas

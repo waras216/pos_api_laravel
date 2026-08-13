@@ -28,7 +28,27 @@ class AsientoController extends Controller
             $query->where('origen', $request->query('origen'));
         }
 
-        return response()->json($query->latest('fecha')->latest('id')->get());
+        $asientos = $query->latest('fecha')->latest('id')->get();
+
+        // IDs de asientos que ya tienen una reversión (otro asiento con
+        // referencia_tipo=Asiento::class apuntando a ellos) — se resuelve en
+        // una sola consulta para no hacer N+1 por fila.
+        $idsReversados = Asiento::where('id_tenant', $idTenant)
+            ->where('referencia_tipo', Asiento::class)
+            ->whereIn('referencia_id', $asientos->pluck('id'))
+            ->pluck('referencia_id')
+            ->all();
+
+        // No usar Collection::each() aquí: si el closure asigna `false` (el
+        // caso común, la mayoría de los asientos no están reversados), la
+        // asignación se evalúa como `false` y Collection::each() lo
+        // interpreta como "detener la iteración" — corta el resto de la
+        // lista silenciosamente. Un foreach normal no tiene ese problema.
+        foreach ($asientos as $a) {
+            $a->reversado = in_array($a->id, $idsReversados, true);
+        }
+
+        return response()->json($asientos);
     }
 
     public function show(Request $request, string $id)

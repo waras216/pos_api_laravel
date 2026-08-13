@@ -4,6 +4,7 @@ namespace App\Models\Erp;
 
 use App\Models\Cliente;
 use App\Models\Concerns\BelongsToTenant;
+use App\Models\Usuarios;
 use Illuminate\Database\Eloquent\Model;
 
 class Pedido extends Model
@@ -15,6 +16,7 @@ class Pedido extends Model
     protected $fillable = [
         'id_tenant',
         'id_cliente',
+        'id_usuario',
         'total',
         'estado',
         'fecha',
@@ -27,6 +29,11 @@ class Pedido extends Model
     public function cliente()
     {
         return $this->belongsTo(Cliente::class, 'id_cliente', 'id_cliente');
+    }
+
+    public function cajero()
+    {
+        return $this->belongsTo(Usuarios::class, 'id_usuario', 'id_usuario');
     }
 
     public function items()

@@ -264,7 +264,10 @@ Route::macro('permisoResourceSinVer', function (string $uri, string $controller,
             // Habitaciones/room-service del terminal POS de hotel (SPRINT-39).
             Route::get('habitaciones', [HabitacionController::class, 'index']);
             Route::post('habitaciones', [HabitacionController::class, 'store'])->middleware('permiso:erp_ventas.editar');
+            Route::patch('habitaciones/{id}', [HabitacionController::class, 'update'])->middleware('permiso:erp_ventas.editar');
             Route::delete('habitaciones/{id}', [HabitacionController::class, 'destroy'])->middleware('permiso:erp_ventas.eliminar');
+            Route::get('habitaciones/papelera', [HabitacionController::class, 'papelera'])->middleware('permiso:erp_ventas.eliminar');
+            Route::patch('habitaciones/{id}/restaurar', [HabitacionController::class, 'restaurar'])->middleware('permiso:erp_ventas.eliminar');
             Route::patch('habitaciones/{id}/check-in', [HabitacionController::class, 'checkIn'])->middleware('permiso:erp_ventas.crear');
             Route::post('habitaciones/{id}/consumos', [HabitacionController::class, 'agregarConsumo'])->middleware('permiso:erp_ventas.crear');
             Route::delete('habitaciones/{id}/consumos/{consumoId}', [HabitacionController::class, 'quitarConsumo'])->middleware('permiso:erp_ventas.editar');

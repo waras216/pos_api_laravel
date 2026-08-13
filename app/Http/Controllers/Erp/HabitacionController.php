@@ -50,12 +50,33 @@ class HabitacionController extends Controller
                 Rule::unique('erp_habitaciones', 'numero')->where('id_tenant', $idTenant),
             ],
             'tipo' => 'sometimes|string|max:20',
+            'precio' => 'required|numeric|min:0',
             'piso' => 'sometimes|integer|min:1',
         ]);
 
         $data['id_tenant'] = $idTenant;
 
         return response()->json(Habitacion::create($data), 201);
+    }
+
+    public function update(Request $request, string $id)
+    {
+        $idTenant = $request->user()->id_tenant;
+        $habitacion = $this->habitacionDelTenant($request, $id);
+
+        $data = $request->validate([
+            'numero' => [
+                'sometimes', 'integer', 'min:1',
+                Rule::unique('erp_habitaciones', 'numero')->where('id_tenant', $idTenant)->ignore($habitacion->id),
+            ],
+            'tipo' => 'sometimes|string|max:20',
+            'precio' => 'sometimes|numeric|min:0',
+            'piso' => 'sometimes|integer|min:1',
+        ]);
+
+        $habitacion->update($data);
+
+        return response()->json($this->conRelaciones($habitacion));
     }
 
     public function destroy(Request $request, string $id)
@@ -69,6 +90,24 @@ class HabitacionController extends Controller
         $habitacion->delete();
 
         return response()->json(['message' => 'Habitación eliminada']);
+    }
+
+    public function papelera(Request $request)
+    {
+        return response()->json(
+            Habitacion::onlyTrashed()
+                ->where('id_tenant', $request->user()->id_tenant)
+                ->latest('deleted_at')
+                ->get()
+        );
+    }
+
+    public function restaurar(Request $request, string $id)
+    {
+        $habitacion = Habitacion::onlyTrashed()->where('id_tenant', $request->user()->id_tenant)->findOrFail($id);
+        $habitacion->restore();
+
+        return response()->json($this->conRelaciones($habitacion));
     }
 
     public function checkIn(Request $request, string $id)
@@ -161,6 +200,7 @@ class HabitacionController extends Controller
     public function checkOut(Request $request, string $id)
     {
         $idTenant = $request->user()->id_tenant;
+        $idUsuario = $request->user()->id_usuario;
         $habitacion = $this->habitacionDelTenant($request, $id);
 
         if (! in_array($habitacion->estado, ['ocupada', 'checkout'])) {
@@ -168,10 +208,11 @@ class HabitacionController extends Controller
         }
 
         $consumos = $habitacion->consumos()->get();
+        $cargoHospedaje = (float) ($habitacion->precio ?? 0) * (float) ($habitacion->noches ?? 0);
 
         $pedido = null;
 
-        if ($consumos->isNotEmpty()) {
+        if ($consumos->isNotEmpty() || $cargoHospedaje > 0) {
             $data = $request->validate([
                 'id_cliente' => [
                     'required',
@@ -182,7 +223,7 @@ class HabitacionController extends Controller
                 'pagos.*.monto' => 'required_with:pagos|numeric|min:0.01',
             ]);
 
-            $pedido = DB::transaction(function () use ($consumos, $data, $idTenant, $habitacion) {
+            $pedido = DB::transaction(function () use ($consumos, $cargoHospedaje, $data, $idTenant, $idUsuario, $habitacion) {
                 $productos = [];
                 foreach ($consumos as $item) {
                     if (! $item->id_producto) {
@@ -200,27 +241,44 @@ class HabitacionController extends Controller
                 $pedido = Pedido::create([
                     'id_tenant' => $idTenant,
                     'id_cliente' => $data['id_cliente'],
+                    'id_usuario' => $idUsuario,
                     'fecha' => now()->toDateString(),
                     'estado' => 'facturado',
                     'total' => 0,
                 ]);
 
                 $total = 0;
+
+                if ($cargoHospedaje > 0) {
+                    $total += $cargoHospedaje;
+
+                    PedidoItem::create([
+                        'id_pedido' => $pedido->id,
+                        'id_producto' => null,
+                        'descripcion' => "Hospedaje ({$habitacion->noches} noche(s), hab. {$habitacion->numero})",
+                        'cantidad' => 1,
+                        'precio_unitario' => $cargoHospedaje,
+                        'costo_unitario' => 0,
+                        'subtotal' => $cargoHospedaje,
+                    ]);
+                }
+
                 foreach ($consumos as $item) {
                     $subtotal = $item->cantidad * $item->precio_unitario;
                     $total += $subtotal;
+                    $producto = $item->id_producto ? ($productos[$item->id_producto] ?? null) : null;
 
                     PedidoItem::create([
                         'id_pedido' => $pedido->id,
                         'id_producto' => $item->id_producto,
+                        'descripcion' => $item->id_producto ? null : $item->nombre,
                         'cantidad' => $item->cantidad,
                         'precio_unitario' => $item->precio_unitario,
-                        'costo_unitario' => $producto->precio_compra,
+                        'costo_unitario' => $producto?->precio_compra ?? 0,
                         'subtotal' => $subtotal,
                     ]);
 
-                    if ($item->id_producto && isset($productos[$item->id_producto])) {
-                        $producto = $productos[$item->id_producto];
+                    if ($producto) {
                         $producto->decrement('stock', $item->cantidad);
 
                         MovimientoStock::create([
@@ -259,7 +317,7 @@ class HabitacionController extends Controller
 
         return response()->json([
             'habitacion' => $this->conRelaciones($habitacion->fresh()),
-            'pedido' => $pedido?->load(['cliente', 'items.producto']),
+            'pedido' => $pedido?->load(['cliente', 'items.producto', 'cajero', 'pagos']),
         ]);
     }
 }

@@ -177,6 +177,12 @@ class AsientoService
      */
     public function reversar(Asiento $asiento, ?int $idUsuario = null): Asiento
     {
+        if ($this->existeAsientoPara(Asiento::class, $asiento->id)) {
+            throw ValidationException::withMessages([
+                'asiento' => 'Este asiento ya fue reversado anteriormente. No se puede reversar dos veces.',
+            ]);
+        }
+
         $lineas = $asiento->detalles->map(fn ($d) => [
             'id_cuenta' => $d->id_cuenta,
             'debe' => $d->haber,

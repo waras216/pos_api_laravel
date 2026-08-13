@@ -4,10 +4,11 @@ namespace App\Models\Erp;
 
 use App\Models\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Habitacion extends Model
 {
-    use BelongsToTenant;
+    use SoftDeletes, BelongsToTenant;
 
     protected $table = 'erp_habitaciones';
 
@@ -15,6 +16,7 @@ class Habitacion extends Model
         'id_tenant',
         'numero',
         'tipo',
+        'precio',
         'piso',
         'estado',
         'huesped',
@@ -24,6 +26,7 @@ class Habitacion extends Model
     ];
 
     protected $casts = [
+        'precio' => 'float',
         'check_in' => 'date:Y-m-d',
         'check_out' => 'date:Y-m-d',
     ];

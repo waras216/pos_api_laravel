@@ -22,7 +22,7 @@ class PedidoController extends Controller
     {
         return response()->json(
             Pedido::where('id_tenant', $request->user()->id_tenant)
-                ->with(['cliente', 'items.producto'])
+                ->with(['cliente', 'items.producto', 'cajero', 'pagos'])
                 ->latest('id')
                 ->get()
         );
@@ -31,6 +31,7 @@ class PedidoController extends Controller
     public function store(Request $request)
     {
         $idTenant = $request->user()->id_tenant;
+        $idUsuario = $request->user()->id_usuario;
 
         $data = $request->validate([
             'id_cliente' => [
@@ -50,7 +51,7 @@ class PedidoController extends Controller
             'pagos.*.monto' => 'required_with:pagos|numeric|min:0.01',
         ]);
 
-        $pedido = DB::transaction(function () use ($data, $idTenant) {
+        $pedido = DB::transaction(function () use ($data, $idTenant, $idUsuario) {
             $productos = [];
             foreach ($data['items'] as $item) {
                 $producto = Producto::where('id_tenant', $idTenant)->findOrFail($item['id_producto']);
@@ -67,6 +68,7 @@ class PedidoController extends Controller
             $pedido = Pedido::create([
                 'id_tenant' => $idTenant,
                 'id_cliente' => $data['id_cliente'],
+                'id_usuario' => $idUsuario,
                 'fecha' => now()->toDateString(),
                 'estado' => $data['estado'] ?? 'pendiente',
                 'total' => 0,
@@ -115,14 +117,14 @@ class PedidoController extends Controller
             $this->asientos->registrarVenta($pedido->load(['items', 'pagos']));
         }
 
-        return response()->json($pedido->load(['cliente', 'items.producto']), 201);
+        return response()->json($pedido->load(['cliente', 'items.producto', 'cajero', 'pagos']), 201);
     }
 
     public function show(Request $request, string $id)
     {
         return response()->json(
             Pedido::where('id_tenant', $request->user()->id_tenant)
-                ->with(['cliente', 'items.producto'])
+                ->with(['cliente', 'items.producto', 'cajero', 'pagos'])
                 ->findOrFail($id)
         );
     }
@@ -153,7 +155,7 @@ class PedidoController extends Controller
             $this->asientos->registrarVenta($pedido->load(['items', 'pagos']));
         }
 
-        return response()->json($pedido->load(['cliente', 'items.producto']));
+        return response()->json($pedido->load(['cliente', 'items.producto', 'cajero', 'pagos']));
     }
 
     public function destroy(Request $request, string $id)
@@ -189,7 +191,7 @@ class PedidoController extends Controller
             $pedido->update(['estado' => 'cancelada']);
         });
 
-        return response()->json($pedido->load(['cliente', 'items.producto']));
+        return response()->json($pedido->load(['cliente', 'items.producto', 'cajero', 'pagos']));
     }
 
     private function restaurarStock(Pedido $pedido, int $idTenant, string $motivo): void

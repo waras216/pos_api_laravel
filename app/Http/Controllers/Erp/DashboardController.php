@@ -41,19 +41,36 @@ class DashboardController extends Controller
         $envios = Envio::where('id_tenant', $idTenant)->get();
         $proyectos = Proyecto::where('id_tenant', $idTenant)->get();
 
-        // Ingresos/egresos del mes se leen del libro mayor (partida doble)
-        // en vez de la vieja tabla plana erp_movimientos.
-        $lineasMes = AsientoDetalle::whereHas('asiento', fn ($q) => $q->where('id_tenant', $idTenant)
-            ->whereYear('fecha', now()->year)
-            ->whereMonth('fecha', now()->month))
-            ->whereHas('cuenta', fn ($q) => $q->whereIn('tipo', ['ingreso', 'costo', 'gasto']))
-            ->with('cuenta')
-            ->get();
+        // Ingresos/egresos se leen del libro mayor (partida doble) en vez de
+        // la vieja tabla plana erp_movimientos. Se recorren los últimos 6
+        // meses (incluyendo el actual) para armar la tendencia del dashboard
+        // y de paso obtener el mes actual/anterior sin repetir la consulta.
+        $mesesEs = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+        $tendencia = [];
+        for ($i = 5; $i >= 0; $i--) {
+            $mes = now()->copy()->subMonths($i)->startOfMonth();
+            $lineas = AsientoDetalle::whereHas('asiento', fn ($q) => $q->where('id_tenant', $idTenant)
+                ->whereYear('fecha', $mes->year)
+                ->whereMonth('fecha', $mes->month))
+                ->whereHas('cuenta', fn ($q) => $q->whereIn('tipo', ['ingreso', 'costo', 'gasto']))
+                ->with('cuenta')
+                ->get();
+
+            $tendencia[] = [
+                'mes' => $mesesEs[$mes->month - 1],
+                'ingresos' => (float) $lineas->where('cuenta.tipo', 'ingreso')->sum(fn ($l) => $l->haber - $l->debe),
+                'egresos' => (float) $lineas->whereIn('cuenta.tipo', ['costo', 'gasto'])->sum(fn ($l) => $l->debe - $l->haber),
+            ];
+        }
+        $ingresosMes = $tendencia[5]['ingresos'];
+        $egresosMes = $tendencia[5]['egresos'];
+        $ingresosMesAnterior = $tendencia[4]['ingresos'];
+        $deltaIngresos = $ingresosMesAnterior > 0
+            ? round((($ingresosMes - $ingresosMesAnterior) / $ingresosMesAnterior) * 100)
+            : null;
 
         $valorInventario = $inventario->sum(fn ($p) => $p->precio * $p->stock);
         $comprasPendientes = $compras->where('estado', 'pendiente');
-        $ingresosMes = $lineasMes->where('cuenta.tipo', 'ingreso')->sum(fn ($l) => $l->haber - $l->debe);
-        $egresosMes = $lineasMes->whereIn('cuenta.tipo', ['costo', 'gasto'])->sum(fn ($l) => $l->debe - $l->haber);
         $ventasPorCobrar = $ventas->where('estado', '!=', 'facturado')->sum('total');
         $empleadosActivos = $empleados->where('estado', 'activo');
         $nominaMensual = $empleadosActivos->sum('salario');
@@ -66,7 +83,7 @@ class DashboardController extends Controller
 
         $kpis = [
             ['value' => '$' . number_format($valorInventario, 0), 'label' => 'Valor de Inventario', 'bg' => 'bg-amber-100', 'color' => 'text-amber-600', 'icon' => 'box'],
-            ['value' => '$' . number_format($ingresosMes, 0), 'label' => 'Ingresos del Mes', 'bg' => 'bg-emerald-100', 'color' => 'text-emerald-600', 'icon' => 'dollar'],
+            ['value' => '$' . number_format($ingresosMes, 0), 'label' => 'Ingresos del Mes', 'bg' => 'bg-emerald-100', 'color' => 'text-emerald-600', 'icon' => 'dollar', 'delta' => $deltaIngresos],
             ['value' => (string) $comprasPendientes->count(), 'label' => 'Compras Pendientes', 'bg' => 'bg-blue-100', 'color' => 'text-blue-600', 'icon' => 'clipboard'],
             ['value' => (string) $proyectosActivos->count(), 'label' => 'Proyectos Activos', 'bg' => 'bg-purple-100', 'color' => 'text-purple-600', 'icon' => 'folder'],
         ];
@@ -152,6 +169,7 @@ class DashboardController extends Controller
             'kpis' => $kpis,
             'modulos' => $modulos,
             'actividad' => $actividad,
+            'tendencia' => $tendencia,
         ]);
     }
 }

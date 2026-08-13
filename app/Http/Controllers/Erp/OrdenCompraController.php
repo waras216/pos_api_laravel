@@ -20,7 +20,7 @@ class OrdenCompraController extends Controller
     {
         return response()->json(
             OrdenCompra::where('id_tenant', $request->user()->id_tenant)
-                ->with(['proveedor', 'items.producto'])
+                ->with(['proveedor', 'items.producto', 'comprador'])
                 ->latest('fecha')
                 ->get()
         );
@@ -29,6 +29,7 @@ class OrdenCompraController extends Controller
     public function store(Request $request)
     {
         $idTenant = $request->user()->id_tenant;
+        $idUsuario = $request->user()->id_usuario;
 
         $data = $request->validate([
             'id_proveedor' => [
@@ -44,10 +45,11 @@ class OrdenCompraController extends Controller
             'items.*.precio_unitario' => 'required|numeric|min:0',
         ]);
 
-        $orden = DB::transaction(function () use ($data, $idTenant) {
+        $orden = DB::transaction(function () use ($data, $idTenant, $idUsuario) {
             $orden = OrdenCompra::create([
                 'id_tenant' => $idTenant,
                 'id_proveedor' => $data['id_proveedor'],
+                'id_usuario' => $idUsuario,
                 'fecha' => now()->toDateString(),
                 'estado' => 'pendiente',
                 'total' => 0,
@@ -72,14 +74,14 @@ class OrdenCompraController extends Controller
             return $orden;
         });
 
-        return response()->json($orden->load(['proveedor', 'items.producto']), 201);
+        return response()->json($orden->load(['proveedor', 'items.producto', 'comprador']), 201);
     }
 
     public function show(Request $request, string $id)
     {
         return response()->json(
             OrdenCompra::where('id_tenant', $request->user()->id_tenant)
-                ->with(['proveedor', 'items.producto'])
+                ->with(['proveedor', 'items.producto', 'comprador'])
                 ->findOrFail($id)
         );
     }
@@ -131,7 +133,7 @@ class OrdenCompraController extends Controller
 
         $this->asientos->registrarCompraRecibida($orden);
 
-        return response()->json($orden->load(['proveedor', 'items.producto']));
+        return response()->json($orden->load(['proveedor', 'items.producto', 'comprador']));
     }
 
     public function cancelar(Request $request, string $id)
@@ -144,6 +146,6 @@ class OrdenCompraController extends Controller
 
         $orden->update(['estado' => 'cancelada']);
 
-        return response()->json($orden);
+        return response()->json($orden->load(['proveedor', 'items.producto', 'comprador']));
     }
 }
