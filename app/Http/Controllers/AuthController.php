@@ -296,6 +296,12 @@ class AuthController extends Controller
             'sector' => $tenant?->sector,
             'idioma' => $tenant?->idioma,
             'zonaHoraria' => $tenant?->zona_horaria,
+            'fiscal' => [
+                'rfc' => $tenant?->rfc_emisor,
+                'razonSocial' => $tenant?->razon_social_emisor,
+                'regimenFiscal' => $tenant?->regimen_fiscal_emisor,
+                'codigoPostal' => $tenant?->codigo_postal_emisor,
+            ],
             'nichoData' => $nichoData,
             'es_admin' => $esAdmin,
             'es_superadmin' => $esSuperadmin,
@@ -312,6 +318,7 @@ class AuthController extends Controller
             'plan' => $tenant?->plan ? [
                 'nombre_plan' => $tenant->plan->nombre_plan,
                 'max_usuarios' => $tenant->plan->max_usuarios,
+                'incluye_facturacion_real' => (bool) $tenant->plan->incluye_facturacion_real,
                 'usuarios_actuales' => Membresia::where('id_tenant', $tenant->id_tenant)->where('estado', 'activa')->count(),
                 'estado_suscripcion' => $tenant->suscripcionActual?->estado ?? 'sin_suscripcion',
                 'fecha_fin_periodo_actual' => $tenant->suscripcionActual?->fecha_fin_periodo_actual,

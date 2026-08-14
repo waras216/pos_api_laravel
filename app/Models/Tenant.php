@@ -29,6 +29,10 @@
             'modulo_erp',
             'datos_nicho',
             'onboarding_completado',
+            'rfc_emisor',
+            'razon_social_emisor',
+            'regimen_fiscal_emisor',
+            'codigo_postal_emisor',
         ];
 
         protected $casts = [

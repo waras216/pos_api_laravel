@@ -27,6 +27,7 @@ class PlanController extends Controller
             'precio' => 'required|numeric|min:0',
             'stripe_price_id' => 'nullable|string|max:255',
             'max_usuarios' => 'nullable|integer|min:1',
+            'incluye_facturacion_real' => 'nullable|boolean',
             'fecha_inicio' => 'required|date',
             'fecha_fin' => 'required|date',
         ]);
@@ -46,6 +47,7 @@ class PlanController extends Controller
             'precio' => 'sometimes|numeric|min:0',
             'stripe_price_id' => 'nullable|string|max:255',
             'max_usuarios' => 'nullable|integer|min:1',
+            'incluye_facturacion_real' => 'nullable|boolean',
             'fecha_inicio' => 'sometimes|date',
             'fecha_fin' => 'sometimes|date',
         ]);

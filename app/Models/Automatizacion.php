@@ -17,11 +17,13 @@ class Automatizacion extends Model
         'regla',
         'evento',
         'accion',
+        'parametros',
         'activa',
     ];
 
     protected $casts = [
         'activa' => 'boolean',
+        'parametros' => 'array',
     ];
 
     protected $appends = ['fecha_creacion'];

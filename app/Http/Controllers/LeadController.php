@@ -6,6 +6,7 @@ use App\Models\Actividad;
 use App\Models\Cliente;
 use App\Models\Lead;
 use App\Models\Oportunidad;
+use App\Services\Crm\AutomatizacionEngine;
 use Illuminate\Auth\Events\Validated;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -13,6 +14,8 @@ use Illuminate\Validation\Rule;
 
 class LeadController extends Controller
 {
+    public function __construct(private AutomatizacionEngine $automatizaciones) {}
+
     /**
      * Display a listing of the resource.
      */
@@ -56,7 +59,11 @@ class LeadController extends Controller
         $data['id_tenant'] = $request->user()->id_tenant;
         $data['id_usuario'] = $request->user()->id_usuario;
 
-        return response()->json(Lead::create($data),201);
+        $lead = Lead::create($data);
+
+        $this->automatizaciones->disparar('lead_creado', $data['id_tenant'], ['lead' => $lead]);
+
+        return response()->json($lead, 201);
     }
 
     /**

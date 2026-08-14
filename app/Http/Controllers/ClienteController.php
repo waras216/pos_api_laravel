@@ -58,7 +58,10 @@ class ClienteController extends Controller
         return response()->json(
             Cliente::where('id_cliente', $id)
                 ->where('id_tenant', $request->user()->id_tenant)
-                ->with(['contactos', 'leads', 'oportunidades', 'actividades'])
+                ->with([
+                    'contactos', 'leads', 'oportunidades', 'actividades',
+                    'pedidos' => fn ($q) => $q->latest('id'),
+                ])
                 ->firstOrFail()
         );
     }

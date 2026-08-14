@@ -5,11 +5,14 @@ namespace App\Http\Controllers;
 use App\Models\Actividad;
 use App\Models\Notificacion;
 use App\Models\Oportunidad;
+use App\Services\Crm\AutomatizacionEngine;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class OportunidadController extends Controller
 {
+    public function __construct(private AutomatizacionEngine $automatizaciones) {}
+
     /**
      * Display a listing of the resource.
      */
@@ -139,12 +142,24 @@ class OportunidadController extends Controller
                     'tipo' => $gano ? 'success' : 'warning',
                     'url' => '/crm/oportunidades',
                 ]);
+
+                $this->automatizaciones->disparar(
+                    $gano ? 'oportunidad_ganada' : 'oportunidad_perdida',
+                    $request->user()->id_tenant,
+                    ['oportunidad' => $oportunidad]
+                );
             } else {
                 $oportunidad->update([
                     'etapa' => $data['etapa'],
                     'estado' => 'abierta',
                     'fecha_cierre' => null,
                 ]);
+
+                $this->automatizaciones->disparar(
+                    'oportunidad_etapa_cambiada',
+                    $request->user()->id_tenant,
+                    ['oportunidad' => $oportunidad]
+                );
             }
 
             return response()->json($oportunidad->load(['cliente', 'pipeline', 'usuario']));

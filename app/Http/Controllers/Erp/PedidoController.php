@@ -7,8 +7,12 @@ use App\Models\Erp\MovimientoStock;
 use App\Models\Erp\Pedido;
 use App\Models\Erp\PedidoItem;
 use App\Models\Producto;
+use App\Models\Rol;
+use App\Models\Usuarios;
+use App\Notifications\PedidoCanceladoNotification;
 use App\Services\Erp\AsientoService;
 use App\Services\Erp\PagoVentaService;
+use App\Services\IntegracionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -190,6 +194,13 @@ class PedidoController extends Controller
             $this->restaurarStock($pedido, $request->user()->id_tenant, 'cancelacion_venta');
             $pedido->update(['estado' => 'cancelada']);
         });
+
+        if (IntegracionService::conectada($pedido->id_tenant, 'email')) {
+            $idsAdmin = Rol::idsAdminTenant($pedido->id_tenant);
+            foreach (Usuarios::whereIn('id_usuario', $idsAdmin)->whereNotNull('email')->get() as $admin) {
+                $admin->notify(new PedidoCanceladoNotification($pedido));
+            }
+        }
 
         return response()->json($pedido->load(['cliente', 'items.producto', 'cajero', 'pagos']));
     }

@@ -3,7 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\Automatizacion;
+use App\Services\Crm\AutomatizacionEngine;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class AutomatizacionController extends Controller
 {
@@ -20,9 +22,10 @@ class AutomatizacionController extends Controller
     {
         $data = $request->validate([
             'nombre_automatizacion' => 'required|string|max:150',
-            'regla' => 'required|string|max:255',
-            'evento' => 'required|string|max:100',
-            'accion' => 'required|string|max:150',
+            'regla' => 'nullable|string|max:255',
+            'evento' => ['required', Rule::in(AutomatizacionEngine::EVENTOS)],
+            'accion' => ['required', Rule::in(AutomatizacionEngine::ACCIONES)],
+            'parametros' => 'nullable|array',
             'activa' => 'sometimes|boolean',
         ]);
 
@@ -39,9 +42,10 @@ class AutomatizacionController extends Controller
 
         $data = $request->validate([
             'nombre_automatizacion' => 'sometimes|string|max:150',
-            'regla' => 'sometimes|string|max:255',
-            'evento' => 'sometimes|string|max:100',
-            'accion' => 'sometimes|string|max:150',
+            'regla' => 'nullable|string|max:255',
+            'evento' => ['sometimes', Rule::in(AutomatizacionEngine::EVENTOS)],
+            'accion' => ['sometimes', Rule::in(AutomatizacionEngine::ACCIONES)],
+            'parametros' => 'nullable|array',
             'activa' => 'sometimes|boolean',
         ]);
 

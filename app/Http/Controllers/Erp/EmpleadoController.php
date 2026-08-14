@@ -63,4 +63,22 @@ class EmpleadoController extends Controller
 
         return response()->json(['message' => 'Empleado eliminado']);
     }
+
+    public function papelera(Request $request)
+    {
+        return response()->json(
+            Empleado::onlyTrashed()
+                ->where('id_tenant', $request->user()->id_tenant)
+                ->latest('deleted_at')
+                ->get()
+        );
+    }
+
+    public function restaurar(Request $request, string $id)
+    {
+        $empleado = Empleado::onlyTrashed()->where('id_tenant', $request->user()->id_tenant)->findOrFail($id);
+        $empleado->restore();
+
+        return response()->json($empleado);
+    }
 }

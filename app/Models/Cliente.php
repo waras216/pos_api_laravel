@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToTenant;
+use App\Models\Erp\Pedido;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -46,5 +47,10 @@ class Cliente extends Model
     public function actividades()
     {
         return $this->hasMany(Actividad::class, 'id_cliente', 'id_cliente');
+    }
+
+    public function pedidos()
+    {
+        return $this->hasMany(Pedido::class, 'id_cliente', 'id_cliente');
     }
 }

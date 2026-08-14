@@ -16,8 +16,13 @@ class Plan extends Model
         'precio',
         'stripe_price_id',
         'max_usuarios',
+        'incluye_facturacion_real',
         'fecha_inicio',
         'fecha_fin'
+    ];
+
+    protected $casts = [
+        'incluye_facturacion_real' => 'boolean',
     ];
 
     public function tenants()

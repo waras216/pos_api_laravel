@@ -14,7 +14,9 @@ use App\Http\Controllers\ActividadController;
 use App\Http\Controllers\NotificacionController;
 use App\Http\Controllers\CampanaController;
 use App\Http\Controllers\AutomatizacionController;
+use App\Http\Controllers\GoogleAuthController;
 use App\Http\Controllers\IntegracionController;
+use App\Http\Controllers\WhatsappBaileysController;
 use App\Http\Controllers\TenantController;
 use App\Http\Controllers\UsuarioController;
 use App\Http\Controllers\RolController;
@@ -29,6 +31,7 @@ use App\Http\Controllers\Erp\InventarioController;
 use App\Http\Controllers\Erp\OrdenCompraController;
 use App\Http\Controllers\Erp\ProveedorController;
 use App\Http\Controllers\Erp\MovimientoController;
+use App\Http\Controllers\Erp\FacturaController;
 use App\Http\Controllers\Erp\PedidoController;
 use App\Http\Controllers\Erp\MesaController;
 use App\Http\Controllers\Erp\HabitacionController;
@@ -200,6 +203,10 @@ Route::macro('permisoResourceSinVer', function (string $uri, string $controller,
         // Integraciones
         Route::get('integraciones', [IntegracionController::class, 'index'])->middleware('permiso:integraciones.ver');
         Route::patch('integraciones/{id}/toggle', [IntegracionController::class, 'toggle'])->middleware('permiso:integraciones.editar');
+        Route::post('integraciones/google-calendar/conectar', [GoogleAuthController::class, 'conectarCalendario'])->middleware('permiso:integraciones.editar');
+        Route::post('integraciones/whatsapp-baileys/iniciar', [WhatsappBaileysController::class, 'iniciar'])->middleware('permiso:integraciones.editar');
+        Route::get('integraciones/whatsapp-baileys/estado', [WhatsappBaileysController::class, 'estado'])->middleware('permiso:integraciones.ver');
+        Route::delete('integraciones/whatsapp-baileys/desconectar', [WhatsappBaileysController::class, 'desconectar'])->middleware('permiso:integraciones.editar');
 
         // ERP
         Route::prefix('erp')->middleware('modulo:erp')->group(function () {
@@ -231,6 +238,16 @@ Route::macro('permisoResourceSinVer', function (string $uri, string $controller,
                 ->middlewareFor('destroy', 'permiso:erp_finanzas.eliminar');
             Route::permisoResourceSinVer('ventas', PedidoController::class, 'erp_ventas');
             Route::patch('ventas/{id}/cancelar', [PedidoController::class, 'cancelar'])->middleware('permiso:erp_ventas.editar');
+
+            // Facturación fiscal (CFDI real vía PAC, o solo registro interno)
+            // sobre pedidos ya facturados/cobrados. Reutiliza los permisos
+            // erp_ventas.* en vez de sembrar un grupo nuevo: es una capa
+            // sobre el mismo recurso de negocio (Ventas), no un módulo aparte.
+            Route::get('facturas', [FacturaController::class, 'index'])->middleware('permiso:erp_ventas.ver');
+            Route::post('facturas', [FacturaController::class, 'store'])->middleware('permiso:erp_ventas.crear');
+            Route::get('facturas/{id}', [FacturaController::class, 'show'])->middleware('permiso:erp_ventas.ver');
+            Route::post('facturas/{id}/timbrar', [FacturaController::class, 'timbrar'])->middleware('permiso:erp_ventas.editar');
+            Route::patch('facturas/{id}/cancelar', [FacturaController::class, 'cancelar'])->middleware('permiso:erp_ventas.editar');
 
             // Contabilidad formal: plan de cuentas, asientos de partida doble
             // y estados financieros. Reutiliza el grupo de permisos
@@ -282,6 +299,8 @@ Route::macro('permisoResourceSinVer', function (string $uri, string $controller,
             // (rrhh/{rrhh}) intercepta cualquier ruta literal registrada después.
             Route::get('rrhh/nomina', [NominaController::class, 'index'])->middleware('permiso:erp_rrhh.ver');
             Route::post('rrhh/nomina/procesar', [NominaController::class, 'procesar'])->middleware('permiso:erp_rrhh.crear');
+            Route::get('rrhh/papelera', [EmpleadoController::class, 'papelera'])->middleware('permiso:erp_rrhh.eliminar');
+            Route::patch('rrhh/{id}/restaurar', [EmpleadoController::class, 'restaurar'])->middleware('permiso:erp_rrhh.eliminar');
             Route::permisoResource('rrhh', EmpleadoController::class, 'erp_rrhh');
             Route::permisoResourceSinVer('fabricacion', OrdenProduccionController::class, 'erp_fabricacion');
             Route::get('scm/papelera', [EnvioController::class, 'papelera'])->middleware('permiso:erp_scm.eliminar');

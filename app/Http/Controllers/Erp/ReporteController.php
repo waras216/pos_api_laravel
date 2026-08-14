@@ -30,7 +30,7 @@ class ReporteController extends Controller
             ->when($hasta, fn ($q) => $q->whereDate('fecha', '<=', $hasta))
             ->get();
 
-        $ventas = Pedido::where('id_tenant', $idTenant)
+        $ventas = Pedido::where('id_tenant', $idTenant)->with(['cliente', 'cajero', 'items'])
             ->when($desde, fn ($q) => $q->whereDate('fecha', '>=', $desde))
             ->when($hasta, fn ($q) => $q->whereDate('fecha', '<=', $hasta))
             ->get();
@@ -82,6 +82,18 @@ class ReporteController extends Controller
                 ])
                 ->values(),
             'ventasPorEstado' => $ventas->groupBy('estado')->map->count(),
+            'ventasDetalle' => $ventas
+                ->sortByDesc('fecha')
+                ->map(fn ($v) => [
+                    'id' => $v->id,
+                    'fecha' => $v->fecha,
+                    'cliente' => $v->cliente->nombre ?? 'Sin cliente',
+                    'cajero' => $v->cajero->nombre ?? null,
+                    'estado' => $v->estado,
+                    'items' => $v->items->count(),
+                    'total' => $v->total,
+                ])
+                ->values(),
             'movimientosPorCategoria' => $lineas->groupBy(fn ($l) => $l->cuenta->nombre)->map(fn ($g) => $g->sum($montoLinea)),
             'movimientosPorMes' => $lineas
                 ->groupBy(fn ($l) => Carbon::parse($l->asiento->fecha)->format('Y-m'))

@@ -4,7 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Models\Membresia;
 use App\Models\Rol;
+use App\Models\Tenant;
 use App\Models\Usuarios;
+use App\Notifications\InvitacionEquipoNotification;
+use App\Services\IntegracionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -131,6 +134,11 @@ class UsuarioController extends Controller
             // Sin rol elegido: rol por defecto (todos los permisos) para que
             // un miembro recién invitado no quede sin acceso a nada.
             Rol::asignarMiembro($usuario->id_usuario, $idTenant, $request->user()->id_usuario);
+        }
+
+        if (! empty($data['email']) && IntegracionService::conectada($idTenant, 'email')) {
+            $tenant = Tenant::where('id_tenant', $idTenant)->first();
+            $usuario->notify(new InvitacionEquipoNotification($tenant, $request->user()->nombre, $cuentaExistente));
         }
 
         $respuesta = $usuario->toArray();

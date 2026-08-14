@@ -24,7 +24,12 @@ class Actividad extends Model
         'descripcion',
         'estado',
         'fecha_inicio',
-        'fecha_fin'
+        'fecha_fin',
+        'automatizacion_disparada',
+    ];
+
+    protected $casts = [
+        'automatizacion_disparada' => 'boolean',
     ];
 
     public function cliente()

@@ -36,6 +36,11 @@ class TenantController extends Controller
             'datos_nicho.hotelTiposHabitacion' => 'nullable|array',
             'datos_nicho.hotelTiposHabitacion.*' => 'string|max:40',
             'datos_nicho.restMesas' => 'nullable|integer|min:1|max:200',
+            'fiscal' => 'nullable|array',
+            'fiscal.rfc' => 'nullable|string|max:20',
+            'fiscal.razonSocial' => 'nullable|string|max:150',
+            'fiscal.regimenFiscal' => 'nullable|string|max:5',
+            'fiscal.codigoPostal' => 'nullable|string|max:10',
         ]);
 
         if (! $data['modulos']['crm'] && ! $data['modulos']['pos'] && ! $data['modulos']['erp']) {
@@ -54,6 +59,10 @@ class TenantController extends Controller
             'modulo_erp' => $data['modulos']['erp'],
             'datos_nicho' => $data['datos_nicho'] ?? null,
             'onboarding_completado' => true,
+            'rfc_emisor' => $data['fiscal']['rfc'] ?? null,
+            'razon_social_emisor' => $data['fiscal']['razonSocial'] ?? null,
+            'regimen_fiscal_emisor' => $data['fiscal']['regimenFiscal'] ?? null,
+            'codigo_postal_emisor' => $data['fiscal']['codigoPostal'] ?? null,
         ]);
 
         $this->onboarding->provisionarRecursosPorNicho($tenant, $data['nicho'], $data['datos_nicho'] ?? []);
@@ -74,6 +83,11 @@ class TenantController extends Controller
             'modulos.crm' => 'required_with:modulos|boolean',
             'modulos.pos' => 'required_with:modulos|boolean',
             'modulos.erp' => 'required_with:modulos|boolean',
+            'fiscal' => 'nullable|array',
+            'fiscal.rfc' => 'nullable|string|max:20',
+            'fiscal.razonSocial' => 'nullable|string|max:150',
+            'fiscal.regimenFiscal' => 'nullable|string|max:5',
+            'fiscal.codigoPostal' => 'nullable|string|max:10',
         ]);
 
         if (isset($data['modulos']) && ! $data['modulos']['crm'] && ! $data['modulos']['pos'] && ! $data['modulos']['erp']) {
@@ -99,6 +113,13 @@ class TenantController extends Controller
             $cambios['modulo_crm'] = $data['modulos']['crm'];
             $cambios['modulo_pos'] = $data['modulos']['pos'];
             $cambios['modulo_erp'] = $data['modulos']['erp'];
+        }
+
+        if (isset($data['fiscal'])) {
+            $cambios['rfc_emisor'] = $data['fiscal']['rfc'] ?? $tenant->rfc_emisor;
+            $cambios['razon_social_emisor'] = $data['fiscal']['razonSocial'] ?? $tenant->razon_social_emisor;
+            $cambios['regimen_fiscal_emisor'] = $data['fiscal']['regimenFiscal'] ?? $tenant->regimen_fiscal_emisor;
+            $cambios['codigo_postal_emisor'] = $data['fiscal']['codigoPostal'] ?? $tenant->codigo_postal_emisor;
         }
 
         $tenant->update($cambios);
@@ -149,6 +170,12 @@ class TenantController extends Controller
             'sector' => $tenant->sector,
             'idioma' => $tenant->idioma,
             'zonaHoraria' => $tenant->zona_horaria,
+            'fiscal' => [
+                'rfc' => $tenant->rfc_emisor,
+                'razonSocial' => $tenant->razon_social_emisor,
+                'regimenFiscal' => $tenant->regimen_fiscal_emisor,
+                'codigoPostal' => $tenant->codigo_postal_emisor,
+            ],
             'nichoData' => $tenant->onboarding_completado ? array_merge([
                 'nicho' => optional($tenant->negocio)->slug,
                 'moneda' => $tenant->moneda,
