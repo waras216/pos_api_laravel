@@ -26,6 +26,7 @@ class Actividad extends Model
         'fecha_inicio',
         'fecha_fin',
         'automatizacion_disparada',
+        'id_evento_google',
     ];
 
     protected $casts = [

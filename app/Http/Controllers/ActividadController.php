@@ -4,10 +4,13 @@ namespace App\Http\Controllers;
 
 use App\Models\Actividad;
 use App\Models\Oportunidad;
+use App\Services\GoogleCalendarService;
 use Illuminate\Http\Request;
 
 class ActividadController extends Controller
 {
+    public function __construct(private GoogleCalendarService $calendario) {}
+
     /**
      * Display a listing of the resource.
      */
@@ -40,7 +43,18 @@ class ActividadController extends Controller
         $data['id_tenant'] = $request->user()->id_tenant;
         $data['id_usuario'] = $request->user()->id_usuario;
 
-        return response()->json(Actividad::create($data)->load(['cliente', 'lead', 'oportunidad', 'usuario']),201);
+        $actividad = Actividad::create($data);
+
+        if ($actividad->fecha_inicio) {
+            $idEventoGoogle = $this->calendario->crearEvento(
+                $actividad->id_tenant, $actividad->titulo, $actividad->descripcion, $actividad->fecha_inicio, $actividad->fecha_fin
+            );
+            if ($idEventoGoogle) {
+                $actividad->update(['id_evento_google' => $idEventoGoogle]);
+            }
+        }
+
+        return response()->json($actividad->load(['cliente', 'lead', 'oportunidad', 'usuario']),201);
     }
 
     /**
@@ -78,6 +92,20 @@ class ActividadController extends Controller
         ]);
 
         $actividad->update($data);
+
+        if ($actividad->id_evento_google) {
+            $this->calendario->actualizarEvento(
+                $actividad->id_tenant, $actividad->id_evento_google, $actividad->titulo, $actividad->descripcion, $actividad->fecha_inicio, $actividad->fecha_fin
+            );
+        } elseif ($actividad->fecha_inicio) {
+            $idEventoGoogle = $this->calendario->crearEvento(
+                $actividad->id_tenant, $actividad->titulo, $actividad->descripcion, $actividad->fecha_inicio, $actividad->fecha_fin
+            );
+            if ($idEventoGoogle) {
+                $actividad->update(['id_evento_google' => $idEventoGoogle]);
+            }
+        }
+
         return response()->json($actividad->load(['cliente', 'lead', 'oportunidad', 'usuario']));
     }
 
@@ -89,6 +117,10 @@ class ActividadController extends Controller
         $actividad = Actividad::where('id_actividad', $id)
             ->where('id_tenant', $request->user()->id_tenant)
             ->firstOrFail();
+
+        if ($actividad->id_evento_google) {
+            $this->calendario->eliminarEvento($actividad->id_tenant, $actividad->id_evento_google);
+        }
 
         $actividad->delete();
         return response()->json(['message' => 'Actividad eliminada']);

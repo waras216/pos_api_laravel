@@ -16,6 +16,9 @@ class NominaPago extends Model
     protected $fillable = [
         'id_tenant',
         'fecha',
+        'periodo',
+        'fecha_inicio',
+        'fecha_fin',
         'total',
         'id_asiento',
     ];

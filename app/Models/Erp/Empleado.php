@@ -19,6 +19,7 @@ class Empleado extends Model
         'puesto',
         'estado',
         'salario',
+        'periodicidad',
     ];
 
     protected $casts = [

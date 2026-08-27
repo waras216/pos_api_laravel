@@ -194,7 +194,10 @@ class AutomatizacionEngine
             'fecha_fin' => $fechaFin,
         ]);
 
-        $this->calendario->crearEvento($automatizacion->id_tenant, $actividad->titulo, $actividad->descripcion, $fechaInicio, $fechaFin);
+        $idEventoGoogle = $this->calendario->crearEvento($automatizacion->id_tenant, $actividad->titulo, $actividad->descripcion, $fechaInicio, $fechaFin);
+        if ($idEventoGoogle) {
+            $actividad->update(['id_evento_google' => $idEventoGoogle]);
+        }
     }
 
     private function cambiarEstado(Automatizacion $automatizacion, array $contexto): void

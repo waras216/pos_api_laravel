@@ -24,6 +24,7 @@ class EmpleadoController extends Controller
             'departamento' => 'required|string|max:100',
             'puesto' => 'required|string|max:100',
             'salario' => 'nullable|numeric|min:0',
+            'periodicidad' => 'nullable|in:semanal,quincenal,mensual',
         ]);
 
         $data['id_tenant'] = $request->user()->id_tenant;
@@ -49,6 +50,7 @@ class EmpleadoController extends Controller
             'puesto' => 'sometimes|string|max:100',
             'estado' => 'sometimes|in:activo,inactivo',
             'salario' => 'nullable|numeric|min:0',
+            'periodicidad' => 'sometimes|in:semanal,quincenal,mensual',
         ]);
 
         $empleado->update($data);

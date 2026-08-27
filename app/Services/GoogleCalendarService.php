@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Integracion;
+use App\Models\Tenant;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -17,28 +18,27 @@ use Illuminate\Support\Facades\Log;
  */
 class GoogleCalendarService
 {
-    public function crearEvento(int $idTenant, string $titulo, ?string $descripcion, \DateTimeInterface|string|null $fechaInicio, \DateTimeInterface|string|null $fechaFin): void
+    /**
+     * Devuelve el ID del evento creado (para guardarlo en
+     * actividades.id_evento_google y poder editarlo/borrarlo después), o
+     * null si no hay integración conectada o la llamada falló.
+     */
+    public function crearEvento(int $idTenant, string $titulo, ?string $descripcion, \DateTimeInterface|string|null $fechaInicio, \DateTimeInterface|string|null $fechaFin): ?string
     {
-        $integracion = Integracion::where('id_tenant', $idTenant)->where('tipo', 'calendario')->first();
-
-        if (! $integracion || $integracion->estado !== 'conectada') {
-            return;
-        }
-
-        $accessToken = $this->obtenerAccessTokenValido($integracion);
+        $accessToken = $this->accessTokenDelTenant($idTenant);
         if (! $accessToken) {
-            return;
+            return null;
         }
 
-        $inicio = $fechaInicio ? Carbon::parse($fechaInicio) : now();
-        $fin = $fechaFin ? Carbon::parse($fechaFin) : $inicio->copy()->addHour();
+        $zona = $this->zonaHorariaDelTenant($idTenant);
+        [$inicio, $fin] = $this->rango($fechaInicio, $fechaFin, $zona);
 
         $respuesta = Http::withToken($accessToken)
             ->post('https://www.googleapis.com/calendar/v3/calendars/primary/events', [
                 'summary' => $titulo,
                 'description' => $descripcion,
-                'start' => ['dateTime' => $inicio->toRfc3339String()],
-                'end' => ['dateTime' => $fin->toRfc3339String()],
+                'start' => ['dateTime' => $inicio->toRfc3339String(), 'timeZone' => $zona],
+                'end' => ['dateTime' => $fin->toRfc3339String(), 'timeZone' => $zona],
             ]);
 
         if ($respuesta->failed()) {
@@ -47,7 +47,93 @@ class GoogleCalendarService
                 'status' => $respuesta->status(),
                 'body' => $respuesta->body(),
             ]);
+
+            return null;
         }
+
+        return $respuesta->json('id');
+    }
+
+    public function actualizarEvento(int $idTenant, string $idEvento, string $titulo, ?string $descripcion, \DateTimeInterface|string|null $fechaInicio, \DateTimeInterface|string|null $fechaFin): void
+    {
+        $accessToken = $this->accessTokenDelTenant($idTenant);
+        if (! $accessToken) {
+            return;
+        }
+
+        $zona = $this->zonaHorariaDelTenant($idTenant);
+        [$inicio, $fin] = $this->rango($fechaInicio, $fechaFin, $zona);
+
+        $respuesta = Http::withToken($accessToken)
+            ->patch("https://www.googleapis.com/calendar/v3/calendars/primary/events/{$idEvento}", [
+                'summary' => $titulo,
+                'description' => $descripcion,
+                'start' => ['dateTime' => $inicio->toRfc3339String(), 'timeZone' => $zona],
+                'end' => ['dateTime' => $fin->toRfc3339String(), 'timeZone' => $zona],
+            ]);
+
+        if ($respuesta->failed()) {
+            Log::warning('GoogleCalendarService: no se pudo actualizar el evento', [
+                'id_tenant' => $idTenant,
+                'id_evento' => $idEvento,
+                'status' => $respuesta->status(),
+                'body' => $respuesta->body(),
+            ]);
+        }
+    }
+
+    public function eliminarEvento(int $idTenant, string $idEvento): void
+    {
+        $accessToken = $this->accessTokenDelTenant($idTenant);
+        if (! $accessToken) {
+            return;
+        }
+
+        $respuesta = Http::withToken($accessToken)
+            ->delete("https://www.googleapis.com/calendar/v3/calendars/primary/events/{$idEvento}");
+
+        // Google ya devuelve 410 Gone si el evento fue borrado a mano desde
+        // el propio Calendar -- no es un error real, no hay nada que loguear.
+        if ($respuesta->failed() && $respuesta->status() !== 410) {
+            Log::warning('GoogleCalendarService: no se pudo borrar el evento', [
+                'id_tenant' => $idTenant,
+                'id_evento' => $idEvento,
+                'status' => $respuesta->status(),
+                'body' => $respuesta->body(),
+            ]);
+        }
+    }
+
+    private function rango(\DateTimeInterface|string|null $fechaInicio, \DateTimeInterface|string|null $fechaFin, string $zona): array
+    {
+        $inicio = $fechaInicio ? Carbon::parse($fechaInicio, $zona) : now($zona);
+        $fin = $fechaFin ? Carbon::parse($fechaFin, $zona) : $inicio->copy()->addHour();
+
+        return [$inicio, $fin];
+    }
+
+    /**
+     * Sin esto, una fecha "en blanco" como "2026-08-19" se interpreta con
+     * el timezone por defecto de la app (UTC, ver config/app.php) en vez
+     * del real del tenant -- medianoche UTC del día 19 cae la tarde/noche
+     * del 18 en zonas horarias negativas (ej. America/Mexico_City,
+     * UTC-6), y el evento aparece "un día antes" en Google Calendar.
+     * Confirmado con una prueba real.
+     */
+    private function zonaHorariaDelTenant(int $idTenant): string
+    {
+        return Tenant::find($idTenant)?->zona_horaria ?? config('app.timezone');
+    }
+
+    private function accessTokenDelTenant(int $idTenant): ?string
+    {
+        $integracion = Integracion::where('id_tenant', $idTenant)->where('tipo', 'calendario')->first();
+
+        if (! $integracion || $integracion->estado !== 'conectada') {
+            return null;
+        }
+
+        return $this->obtenerAccessTokenValido($integracion);
     }
 
     /**

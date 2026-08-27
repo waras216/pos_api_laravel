@@ -16,6 +16,7 @@ class BaileysDriver implements WhatsappDriverInterface
     public function enviar(int $idTenant, string $telefono, string $mensaje): void
     {
         $respuesta = Http::baseUrl($this->config['url'])
+            ->withHeader('X-Internal-Secret', $this->config['secret'])
             ->timeout(15)
             ->post("/sesiones/{$idTenant}/enviar", [
                 'telefono' => $telefono,

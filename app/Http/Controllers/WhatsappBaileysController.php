@@ -20,11 +20,16 @@ class WhatsappBaileysController extends Controller
         return config('whatsapp.drivers.baileys.url');
     }
 
+    private function http()
+    {
+        return Http::baseUrl($this->baseUrl())->withHeader('X-Internal-Secret', config('whatsapp.drivers.baileys.secret'));
+    }
+
     public function iniciar(Request $request)
     {
         $idTenant = $request->user()->id_tenant;
 
-        $respuesta = Http::baseUrl($this->baseUrl())->timeout(15)->post("/sesiones/{$idTenant}/iniciar");
+        $respuesta = $this->http()->timeout(15)->post("/sesiones/{$idTenant}/iniciar");
 
         if ($respuesta->failed()) {
             return response()->json(['message' => 'No se pudo iniciar la sesión de WhatsApp. Verifica que el servicio esté corriendo.'], 502);
@@ -39,7 +44,7 @@ class WhatsappBaileysController extends Controller
     {
         $idTenant = $request->user()->id_tenant;
 
-        $respuesta = Http::baseUrl($this->baseUrl())->timeout(10)->get("/sesiones/{$idTenant}/estado");
+        $respuesta = $this->http()->timeout(10)->get("/sesiones/{$idTenant}/estado");
 
         if ($respuesta->failed()) {
             return response()->json(['status' => 'error', 'qr' => null]);
@@ -54,7 +59,7 @@ class WhatsappBaileysController extends Controller
     {
         $idTenant = $request->user()->id_tenant;
 
-        Http::baseUrl($this->baseUrl())->timeout(15)->delete("/sesiones/{$idTenant}");
+        $this->http()->timeout(15)->delete("/sesiones/{$idTenant}");
 
         Integracion::where('id_tenant', $idTenant)->where('tipo', 'whatsapp')->update(['estado' => 'desconectada']);
 

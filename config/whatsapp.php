@@ -24,6 +24,7 @@ return [
         // -- ver whatsapp_baileys_service/index.js.
         'baileys' => [
             'url' => env('WHATSAPP_BAILEYS_URL', 'http://whatsapp_baileys:3001'),
+            'secret' => env('WHATSAPP_BAILEYS_SECRET'),
         ],
     ],
 ];
