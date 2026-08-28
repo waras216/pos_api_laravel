@@ -53,7 +53,7 @@ class LeadController extends Controller
                 'descripcion' => 'nullable|string',
                 'estado' => 'sometimes|in:nuevo,contactado,calificado,perdido,convertido',
                 'fuente' => 'sometimes|in:web,referido,llamada,email,otro',
-                'valor_estimado' => 'nullable|numeric|min:0',
+                'valor_estimado' => 'nullable|numeric|min:0|max:999999999999.99',
             ]);
 
         $data['id_tenant'] = $request->user()->id_tenant;
@@ -97,7 +97,7 @@ class LeadController extends Controller
             'descripcion'    => 'nullable|string',
             'estado'         => 'sometimes|in:nuevo,contactado,calificado,perdido,convertido',
             'fuente'         => 'sometimes|in:web,referido,llamada,email,otro',
-            'valor_estimado' => 'nullable|numeric|min:0',
+            'valor_estimado' => 'nullable|numeric|min:0|max:999999999999.99',
         ]);
 
         $lead->update($data);
@@ -115,7 +115,7 @@ class LeadController extends Controller
                 Rule::exists('pipelines', 'id_pipeline')->where('id_tenant', $request->user()->id_tenant),
             ],
             'etapa'   => 'sometimes|in:prospeccion,contacto,propuesta,negociacion,cierre',
-            'valor'   => 'nullable|numeric|min:0',
+            'valor'   => 'nullable|numeric|min:0|max:999999999999.99',
             'nombre'  => 'nullable|string|max:150',
             'email'   => 'nullable|email|max:200',
             'telefono'=> 'nullable|string|max:20',
