@@ -12,12 +12,22 @@ class InventarioController extends Controller
 {
     public function index(Request $request)
     {
-        return response()->json(
-            Producto::where('id_tenant', $request->user()->id_tenant)
-                ->with('categoria')
-                ->latest('id_productos')
-                ->get()
-        );
+        $productos = Producto::where('id_tenant', $request->user()->id_tenant)
+            ->with('categoria')
+            ->latest('id_productos');
+
+        // Filtro opcional para búsqueda global (ver shell-layout.component.ts).
+        // Sigue devolviendo el arreglo completo sin paginar a propósito: este
+        // mismo endpoint lo consumen también el catálogo POS y los terminales
+        // de hotel/restaurante/farmacia, que necesitan la lista entera.
+        $productos->when($request->filled('search'), function ($q) use ($request) {
+            $q->where(function ($qq) use ($request) {
+                $qq->whereLike('nombre', '%' . $request->search . '%')
+                   ->orWhereLike('sku', '%' . $request->search . '%');
+            });
+        });
+
+        return response()->json($productos->get());
     }
 
     public function store(Request $request)

@@ -18,11 +18,16 @@ class OportunidadController extends Controller
      */
     public function index(Request $request)
     {
-        return response()->json(
-            Oportunidad::where('id_tenant', $request->user()->id_tenant)
-            ->with(['cliente', 'pipeline', 'usuario'])
-            ->get()
-        );
+        $oportunidades = Oportunidad::where('id_tenant', $request->user()->id_tenant)
+            ->with(['cliente', 'pipeline', 'usuario']);
+
+        // Filtro opcional para búsqueda global (ver shell-layout.component.ts) —
+        // el tablero Kanban sigue pidiendo la lista completa sin este parámetro.
+        $oportunidades->when($request->filled('search'), function ($q) use ($request) {
+            $q->whereLike('titulo', '%' . $request->search . '%');
+        });
+
+        return response()->json($oportunidades->get());
     }
 
     /**
