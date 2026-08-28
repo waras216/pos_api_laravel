@@ -62,12 +62,17 @@ class OnboardingService
             ['nombre' => 'Email Marketing', 'tipo' => 'email'],
             ['nombre' => 'Google Calendar', 'tipo' => 'calendario'],
             ['nombre' => 'Almacenamiento en la nube', 'tipo' => 'almacenamiento'],
+            // El token es lo que autentica el formulario público de su landing
+            // (WordPress u otra) contra PublicFormularioController -- se genera
+            // desde ya para que "Conectar" solo sea prender el interruptor.
+            ['nombre' => 'Sitio Web', 'tipo' => 'sitio_web', 'configuracion' => ['token' => Str::random(40)]],
         ] as $integracion) {
             Integracion::create([
                 'id_tenant' => $tenant->id_tenant,
                 'nombre' => $integracion['nombre'],
                 'tipo' => $integracion['tipo'],
                 'estado' => 'desconectada',
+                'configuracion' => $integracion['configuracion'] ?? null,
             ]);
         }
 

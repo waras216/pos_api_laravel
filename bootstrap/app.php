@@ -14,6 +14,14 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->redirectGuestsTo(fn () => null);
 
+        // Tiene que ir ANTES que Illuminate\Http\Middleware\HandleCors (parte
+        // del stack global por defecto): HandleCors corta el preflight
+        // OPTIONS antes de que la ruta llegue a ejecutarse, así que si esto
+        // fuera middleware de ruta nunca alcanzaría a responder el
+        // preflight del formulario público a tiempo. Ver
+        // AllowPublicFormularioCors: es un no-op para cualquier otra ruta.
+        $middleware->prepend(\App\Http\Middleware\AllowPublicFormularioCors::class);
+
         $middleware->alias([
             'admin.tenant' => \App\Http\Middleware\EnsureTenantAdmin::class,
             'superadmin' => \App\Http\Middleware\EnsureSuperAdmin::class,
