@@ -10,6 +10,7 @@ use App\Models\Producto;
 use App\Models\Rol;
 use App\Models\Usuarios;
 use App\Notifications\PedidoCanceladoNotification;
+use App\Services\Crm\AutomatizacionEngine;
 use App\Services\Erp\AsientoService;
 use App\Services\Erp\PagoVentaService;
 use App\Services\IntegracionService;
@@ -20,7 +21,11 @@ use Illuminate\Validation\ValidationException;
 
 class PedidoController extends Controller
 {
-    public function __construct(private AsientoService $asientos, private PagoVentaService $pagos) {}
+    public function __construct(
+        private AsientoService $asientos,
+        private PagoVentaService $pagos,
+        private AutomatizacionEngine $automatizaciones,
+    ) {}
 
     public function index(Request $request)
     {
@@ -125,6 +130,8 @@ class PedidoController extends Controller
         if ($pedido->estado === 'facturado') {
             $this->asientos->registrarVenta($pedido->load(['items', 'pagos']));
         }
+
+        $this->automatizaciones->disparar('venta_creada', $idTenant, ['pedido' => $pedido]);
 
         return response()->json($pedido->load(['cliente', 'items.producto', 'cajero', 'pagos']), 201);
     }

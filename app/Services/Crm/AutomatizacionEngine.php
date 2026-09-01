@@ -12,6 +12,7 @@ use App\Services\GoogleCalendarService;
 use App\Services\IntegracionService;
 use App\Services\Whatsapp\WhatsappDriverInterface;
 use App\Services\Whatsapp\WhatsappException;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
 
@@ -19,10 +20,11 @@ use Illuminate\Support\Facades\Notification;
  * Ejecuta las Automatizacion activas de un tenant cuando ocurre un evento
  * real del CRM. Se invoca explícitamente desde los controllers en el punto
  * exacto donde pasa el evento (LeadController::store, OportunidadController
- * ::moverEtapa, el comando programado de actividades vencidas) — no hay
- * listeners genéricos de modelo, así que una acción que modifica un Lead u
- * Oportunidad (ver cambiarEstado()) nunca puede re-disparar el motor por
- * accidente y entrar en loop.
+ * ::moverEtapa, ClienteController::store, PedidoController::store, el
+ * comando programado de actividades vencidas) — no hay listeners genéricos
+ * de modelo, así que una acción que modifica un Lead u Oportunidad (ver
+ * cambiarEstado()) nunca puede re-disparar el motor por accidente y entrar
+ * en loop.
  */
 class AutomatizacionEngine
 {
@@ -32,6 +34,8 @@ class AutomatizacionEngine
         'oportunidad_perdida',
         'oportunidad_etapa_cambiada',
         'actividad_vencida',
+        'cliente_creado',
+        'venta_creada',
     ];
 
     public const ACCIONES = [
@@ -40,12 +44,13 @@ class AutomatizacionEngine
         'cambiar_estado',
         'notificar_usuario',
         'enviar_whatsapp',
+        'enviar_webhook',
     ];
 
     public function __construct(private WhatsappDriverInterface $whatsapp, private GoogleCalendarService $calendario) {}
 
     /**
-     * @param  array<string, mixed>  $contexto  claves posibles: 'lead' (Lead), 'oportunidad' (Oportunidad), 'actividad' (Actividad)
+     * @param  array<string, mixed>  $contexto  claves posibles: 'lead' (Lead), 'oportunidad' (Oportunidad), 'actividad' (Actividad), 'cliente' (Cliente), 'pedido' (Erp\Pedido)
      */
     public function disparar(string $evento, int $idTenant, array $contexto): void
     {
@@ -77,6 +82,7 @@ class AutomatizacionEngine
             'cambiar_estado' => $this->cambiarEstado($automatizacion, $contexto),
             'notificar_usuario' => $this->notificarUsuario($automatizacion, $contexto),
             'enviar_whatsapp' => $this->enviarWhatsapp($automatizacion, $contexto),
+            'enviar_webhook' => $this->enviarWebhook($automatizacion, $contexto),
             default => null,
         };
     }
@@ -91,6 +97,12 @@ class AutomatizacionEngine
         }
         if (isset($contexto['actividad'])) {
             return $contexto['actividad']->cliente?->email ?? $contexto['actividad']->lead?->email;
+        }
+        if (isset($contexto['cliente'])) {
+            return $contexto['cliente']->email;
+        }
+        if (isset($contexto['pedido'])) {
+            return $contexto['pedido']->cliente?->email;
         }
 
         return null;
@@ -107,6 +119,12 @@ class AutomatizacionEngine
         if (isset($contexto['actividad'])) {
             return $contexto['actividad']->cliente?->telefono ?? $contexto['actividad']->lead?->telefono;
         }
+        if (isset($contexto['cliente'])) {
+            return $contexto['cliente']->telefono;
+        }
+        if (isset($contexto['pedido'])) {
+            return $contexto['pedido']->cliente?->telefono;
+        }
 
         return null;
     }
@@ -121,6 +139,12 @@ class AutomatizacionEngine
         }
         if (isset($contexto['actividad'])) {
             return $contexto['actividad']->id_cliente;
+        }
+        if (isset($contexto['cliente'])) {
+            return $contexto['cliente']->id_cliente;
+        }
+        if (isset($contexto['pedido'])) {
+            return $contexto['pedido']->id_cliente;
         }
 
         return null;
@@ -176,6 +200,11 @@ class AutomatizacionEngine
             $idLead = $contexto['actividad']->id_lead;
             $idOportunidad = $contexto['actividad']->id_oportunidad;
             $idUsuarioDueno = $contexto['actividad']->id_usuario;
+        } elseif (isset($contexto['cliente'])) {
+            $idCliente = $contexto['cliente']->id_cliente;
+        } elseif (isset($contexto['pedido'])) {
+            $idCliente = $contexto['pedido']->id_cliente;
+            $idUsuarioDueno = $contexto['pedido']->id_usuario;
         }
 
         $fechaInicio = now();
@@ -231,6 +260,31 @@ class AutomatizacionEngine
             $this->whatsapp->enviar($automatizacion->id_tenant, $telefono, $mensaje);
         } catch (WhatsappException $e) {
             Log::warning("Automatización #{$automatizacion->id}: envío de WhatsApp falló", ['error' => $e->getMessage()]);
+        }
+    }
+
+    private function enviarWebhook(Automatizacion $automatizacion, array $contexto): void
+    {
+        $url = $automatizacion->parametros['url'] ?? null;
+        if (! $url || ! filter_var($url, FILTER_VALIDATE_URL)) {
+            return;
+        }
+
+        $datos = [];
+        foreach ($contexto as $clave => $modelo) {
+            $datos[$clave] = $modelo instanceof \Illuminate\Database\Eloquent\Model ? $modelo->toArray() : $modelo;
+        }
+
+        try {
+            Http::timeout(5)->post($url, [
+                'evento' => $automatizacion->evento,
+                'automatizacion' => $automatizacion->nombre_automatizacion,
+                'id_tenant' => $automatizacion->id_tenant,
+                'disparado_en' => now()->toIso8601String(),
+                'datos' => $datos,
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning("Automatización #{$automatizacion->id}: webhook falló", ['error' => $e->getMessage()]);
         }
     }
 

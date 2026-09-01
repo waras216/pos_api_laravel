@@ -3,10 +3,14 @@
 namespace App\Http\Controllers;
 
 use App\Models\Cliente;
+use App\Services\Crm\AutomatizacionEngine;
 use Illuminate\Http\Request;
 
 class ClienteController extends Controller
 {
+    public function __construct(private AutomatizacionEngine $automatizaciones) {}
+
+
     /**
      * Display a listing of the resource.
      */
@@ -47,7 +51,11 @@ class ClienteController extends Controller
         ]);
 
         $data['id_tenant'] = $request->user()->id_tenant;
-        return response()->json(Cliente::create($data), 200);
+        $cliente = Cliente::create($data);
+
+        $this->automatizaciones->disparar('cliente_creado', $data['id_tenant'], ['cliente' => $cliente]);
+
+        return response()->json($cliente, 200);
     }
 
     /**
