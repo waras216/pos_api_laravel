@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Categoria;
 use App\Models\Erp\Habitacion;
 use App\Models\Erp\Mesa;
 use App\Models\Integracion;
@@ -110,5 +111,33 @@ class OnboardingService
                 }
             }
         }
+
+        if ($nicho === 'hotel' && ! empty($datosNicho['hotelAmenidades'])) {
+            foreach ($datosNicho['hotelAmenidades'] as $amenidad) {
+                $nombre = self::AMENIDAD_CATEGORIAS[$amenidad] ?? null;
+                if (! $nombre) {
+                    continue;
+                }
+                Categoria::withoutGlobalScopes()->firstOrCreate(
+                    ['id_tenant' => $tenant->id_tenant, 'nombre' => $nombre],
+                    ['activo' => true]
+                );
+            }
+        }
     }
+
+    /**
+     * Categorías de producto que se auto-crean en el Inventario del hotel
+     * por cada amenidad marcada en el onboarding -- así el consumo de esas
+     * áreas (bar, spa, etc.) se puede filtrar desde Room Service sin que el
+     * hotel tenga que dar de alta las categorías a mano.
+     */
+    private const AMENIDAD_CATEGORIAS = [
+        'restaurante' => 'Restaurante',
+        'bar' => 'Bar',
+        'spa' => 'Spa',
+        'piscina' => 'Piscina',
+        'estacionamiento' => 'Estacionamiento',
+        'eventos' => 'Eventos',
+    ];
 }

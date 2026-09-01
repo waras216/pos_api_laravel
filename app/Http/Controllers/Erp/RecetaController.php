@@ -66,7 +66,8 @@ class RecetaController extends Controller
                 'required',
                 Rule::exists('clientes', 'id_cliente')->where('id_tenant', $idTenant),
             ],
-            'pagos' => 'required|array',
+            'canal' => 'nullable|string|max:30',
+            'pagos' => 'present|array',
             'pagos.*.metodo_pago' => ['required_with:pagos', Rule::in(PagoVentaService::METODOS)],
             'pagos.*.monto' => 'required_with:pagos|numeric|min:0.01',
         ]);
@@ -97,6 +98,7 @@ class RecetaController extends Controller
                 'id_cliente' => $data['id_cliente'],
                 'fecha' => now()->toDateString(),
                 'estado' => 'facturado',
+                'canal' => $data['canal'] ?? 'recetas',
                 'total' => 0,
             ]);
 

@@ -20,6 +20,7 @@ class Pedido extends Model
         'total',
         'estado',
         'fecha',
+        'canal',
     ];
 
     protected $casts = [

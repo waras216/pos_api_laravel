@@ -50,7 +50,8 @@ class PedidoController extends Controller
             'items.*.cantidad' => 'required|integer|min:1',
             'items.*.precio_unitario' => 'required|numeric|min:0',
             'estado' => 'nullable|in:pendiente,enviado,facturado',
-            'pagos' => 'required_if:estado,facturado|array',
+            'canal' => 'nullable|string|max:30',
+            'pagos' => 'nullable|array',
             'pagos.*.metodo_pago' => ['required_with:pagos', Rule::in(PagoVentaService::METODOS)],
             'pagos.*.monto' => 'required_with:pagos|numeric|min:0.01',
         ]);
@@ -60,7 +61,7 @@ class PedidoController extends Controller
             foreach ($data['items'] as $item) {
                 $producto = Producto::where('id_tenant', $idTenant)->findOrFail($item['id_producto']);
 
-                if ($producto->stock < $item['cantidad']) {
+                if ($producto->controla_stock && $producto->stock < $item['cantidad']) {
                     throw ValidationException::withMessages([
                         'items' => "Stock insuficiente para {$producto->nombre} (disponible: {$producto->stock})",
                     ]);
@@ -75,6 +76,7 @@ class PedidoController extends Controller
                 'id_usuario' => $idUsuario,
                 'fecha' => now()->toDateString(),
                 'estado' => $data['estado'] ?? 'pendiente',
+                'canal' => $data['canal'] ?? null,
                 'total' => 0,
             ]);
 
@@ -94,24 +96,27 @@ class PedidoController extends Controller
                     'subtotal' => $subtotal,
                 ]);
 
-                $producto->decrement('stock', $item['cantidad']);
+                if ($producto->controla_stock) {
+                    $producto->decrement('stock', $item['cantidad']);
 
-                MovimientoStock::create([
-                    'id_tenant' => $idTenant,
-                    'id_producto' => $producto->id_productos,
-                    'tipo' => 'salida',
-                    'cantidad' => $item['cantidad'],
-                    'motivo' => 'venta',
-                    'referencia' => "pedido:{$pedido->id}",
-                    'stock_resultante' => $producto->stock,
-                ]);
+                    MovimientoStock::create([
+                        'id_tenant' => $idTenant,
+                        'id_producto' => $producto->id_productos,
+                        'tipo' => 'salida',
+                        'cantidad' => $item['cantidad'],
+                        'motivo' => 'venta',
+                        'referencia' => "pedido:{$pedido->id}",
+                        'stock_resultante' => $producto->stock,
+                    ]);
+                }
             }
 
             $pedido->update(['total' => $total]);
 
             if ($pedido->estado === 'facturado') {
-                $this->pagos->validar($data['pagos'], $total);
-                $this->pagos->crear($pedido, $data['pagos']);
+                $pagos = $data['pagos'] ?? [];
+                $this->pagos->validar($pagos, $total);
+                $this->pagos->crear($pedido, $pagos);
             }
 
             return $pedido;
@@ -209,6 +214,10 @@ class PedidoController extends Controller
     {
         foreach ($pedido->items as $item) {
             $producto = Producto::where('id_tenant', $idTenant)->findOrFail($item->id_producto);
+
+            if (! $producto->controla_stock) {
+                continue;
+            }
 
             $producto->increment('stock', $item->cantidad);
 

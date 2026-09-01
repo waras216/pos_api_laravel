@@ -18,6 +18,7 @@ class MovimientoStock extends Model
         'tipo',
         'cantidad',
         'motivo',
+        'operacion',
         'referencia',
         'stock_resultante',
     ];
