@@ -36,6 +36,7 @@ use App\Http\Controllers\Erp\FacturaController;
 use App\Http\Controllers\Erp\PedidoController;
 use App\Http\Controllers\Erp\MesaController;
 use App\Http\Controllers\Erp\HabitacionController;
+use App\Http\Controllers\Erp\ReservaController;
 use App\Http\Controllers\Erp\RecetaController;
 use App\Http\Controllers\Erp\EmpleadoController;
 use App\Http\Controllers\Erp\OrdenProduccionController;
@@ -295,12 +296,21 @@ Route::macro('permisoResourceSinVer', function (string $uri, string $controller,
             Route::patch('habitaciones/{id}', [HabitacionController::class, 'update'])->middleware('permiso:erp_ventas.editar');
             Route::delete('habitaciones/{id}', [HabitacionController::class, 'destroy'])->middleware('permiso:erp_ventas.eliminar');
             Route::get('habitaciones/papelera', [HabitacionController::class, 'papelera'])->middleware('permiso:erp_ventas.eliminar');
+            Route::get('habitaciones/historial', [HabitacionController::class, 'historial'])->middleware('permiso:erp_ventas.ver');
+            Route::get('habitaciones/disponibilidad', [HabitacionController::class, 'disponibilidad'])->middleware('permiso:erp_ventas.ver');
             Route::patch('habitaciones/{id}/restaurar', [HabitacionController::class, 'restaurar'])->middleware('permiso:erp_ventas.eliminar');
             Route::patch('habitaciones/{id}/check-in', [HabitacionController::class, 'checkIn'])->middleware('permiso:erp_ventas.crear');
             Route::post('habitaciones/{id}/consumos', [HabitacionController::class, 'agregarConsumo'])->middleware('permiso:erp_ventas.crear');
             Route::delete('habitaciones/{id}/consumos/{consumoId}', [HabitacionController::class, 'quitarConsumo'])->middleware('permiso:erp_ventas.editar');
             Route::patch('habitaciones/{id}/mantenimiento', [HabitacionController::class, 'mantenimiento'])->middleware('permiso:erp_ventas.editar');
+            Route::patch('habitaciones/{id}/marcar-salida', [HabitacionController::class, 'marcarSalida'])->middleware('permiso:erp_ventas.editar');
             Route::post('habitaciones/{id}/check-out', [HabitacionController::class, 'checkOut'])->middleware('permiso:erp_ventas.crear');
+
+            // Reservas anticipadas de hotel (fecha futura, antes del check-in real).
+            Route::get('reservas', [ReservaController::class, 'index'])->middleware('permiso:erp_ventas.ver');
+            Route::post('reservas', [ReservaController::class, 'store'])->middleware('permiso:erp_ventas.crear');
+            Route::patch('reservas/{id}/cancelar', [ReservaController::class, 'cancelar'])->middleware('permiso:erp_ventas.editar');
+            Route::post('reservas/{id}/check-in', [ReservaController::class, 'checkIn'])->middleware('permiso:erp_ventas.crear');
 
             // Recetas del terminal POS de farmacia (SPRINT-39).
             Route::get('recetas', [RecetaController::class, 'index']);

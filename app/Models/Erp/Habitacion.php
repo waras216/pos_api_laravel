@@ -35,4 +35,14 @@ class Habitacion extends Model
     {
         return $this->hasMany(HabitacionConsumo::class, 'id_habitacion');
     }
+
+    public function estadias()
+    {
+        return $this->hasMany(Estadia::class, 'id_habitacion');
+    }
+
+    public function reservas()
+    {
+        return $this->hasMany(Reserva::class, 'id_habitacion');
+    }
 }
