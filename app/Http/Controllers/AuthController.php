@@ -202,6 +202,7 @@ class AuthController extends Controller
         $data = $request->validate([
             'nombre' => 'required|string|max:150',
             'email' => 'required|email|max:200|unique:usuarios,email,' . $user->id_usuario . ',id_usuario',
+            'telefono' => 'nullable|string|max:20',
         ]);
 
         $user->update($data);
@@ -288,6 +289,7 @@ class AuthController extends Controller
             'id_tenant' => $user->id_tenant,
             'nombre' => $user->nombre,
             'email' => $user->email,
+            'telefono' => $user->telefono,
             'estado' => $user->estado,
             'foto_perfil' => $user->foto_perfil ? Storage::disk('public')->url($user->foto_perfil) : null,
             'empresa' => $tenant?->nombre_tenant,

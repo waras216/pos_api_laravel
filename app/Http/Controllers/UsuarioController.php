@@ -83,6 +83,7 @@ class UsuarioController extends Controller
             // correo, la contraseña es obligatoria.
             'email' => 'nullable|email',
             'password' => 'nullable|min:6',
+            'telefono' => 'nullable|string|max:20',
             'es_admin' => 'sometimes|boolean',
             'id_rol' => ['nullable', 'integer', Rule::exists('roles', 'id_rol')->where('id_tenant', $idTenant)],
         ]);
@@ -110,6 +111,7 @@ class UsuarioController extends Controller
                 'id_tenant' => $idTenant,
                 'nombre' => $data['nombre'],
                 'email' => $data['email'] ?? null,
+                'telefono' => $data['telefono'] ?? null,
                 // Sin correo no hay password real que usar -- se guarda un
                 // hash de algo aleatorio que nadie puede escribir, así el
                 // login por 2FA queda como única puerta de entrada.
@@ -164,6 +166,7 @@ class UsuarioController extends Controller
             'nombre' => 'sometimes|string|max:100',
             'email' => 'sometimes|email|unique:usuarios,email,' . $usuario->id_usuario . ',id_usuario',
             'password' => 'nullable|min:6',
+            'telefono' => 'nullable|string|max:20',
             'es_admin' => 'sometimes|boolean',
             'estado' => 'sometimes|string|in:activo,ocupado,suspendido',
         ]);
