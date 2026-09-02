@@ -24,8 +24,13 @@ class Producto extends Model
         'precio_compra',
         'stock',
         'stock_minimo',
+        'controla_stock',
         'sku',
         'activo'
+    ];
+
+    protected $casts = [
+        'controla_stock' => 'boolean',
     ];
 
     protected $appends = ['imagen_url'];

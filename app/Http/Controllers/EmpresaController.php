@@ -54,7 +54,7 @@ class EmpresaController extends Controller
 
         return response()->json(array_merge($this->presentResumen($tenant), [
             'miembros' => $tenant->membresias()
-                ->where('estado', 'activa')
+                ->where('membresias.estado', 'activa')
                 ->join('usuarios', 'usuarios.id_usuario', '=', 'membresias.id_usuario')
                 ->orderBy('usuarios.nombre')
                 ->get([

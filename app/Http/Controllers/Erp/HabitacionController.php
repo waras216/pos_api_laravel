@@ -153,7 +153,7 @@ class HabitacionController extends Controller
             'cantidad' => 'sometimes|integer|min:1',
         ]);
 
-        $producto = Producto::where('id_tenant', $idTenant)->findOrFail($data['id_producto']);
+        $producto = Producto::where('id_tenant', $idTenant)->with('categoria')->findOrFail($data['id_producto']);
         $cantidad = $data['cantidad'] ?? 1;
 
         $consumo = $habitacion->consumos()->where('id_producto', $producto->id_productos)->first();
@@ -164,6 +164,7 @@ class HabitacionController extends Controller
                 'id_habitacion' => $habitacion->id,
                 'id_producto' => $producto->id_productos,
                 'nombre' => $producto->nombre,
+                'seccion' => $producto->categoria?->nombre,
                 'precio_unitario' => $producto->precio,
                 'cantidad' => $cantidad,
             ]);
@@ -175,7 +176,16 @@ class HabitacionController extends Controller
     public function quitarConsumo(Request $request, string $id, string $consumoId)
     {
         $habitacion = $this->habitacionDelTenant($request, $id);
-        $habitacion->consumos()->where('id', $consumoId)->delete();
+        $consumo = $habitacion->consumos()->where('id', $consumoId)->first();
+
+        if ($consumo) {
+            $cantidad = max(1, (int) $request->input('cantidad', 1));
+            if ($cantidad >= $consumo->cantidad) {
+                $consumo->delete();
+            } else {
+                $consumo->decrement('cantidad', $cantidad);
+            }
+        }
 
         return response()->json($this->conRelaciones($habitacion));
     }
@@ -256,6 +266,7 @@ class HabitacionController extends Controller
                         'id_pedido' => $pedido->id,
                         'id_producto' => null,
                         'descripcion' => "Hospedaje ({$habitacion->noches} noche(s), hab. {$habitacion->numero})",
+                        'seccion' => 'Hospedaje',
                         'cantidad' => 1,
                         'precio_unitario' => $cargoHospedaje,
                         'costo_unitario' => 0,
@@ -272,6 +283,7 @@ class HabitacionController extends Controller
                         'id_pedido' => $pedido->id,
                         'id_producto' => $item->id_producto,
                         'descripcion' => $item->id_producto ? null : $item->nombre,
+                        'seccion' => $item->seccion,
                         'cantidad' => $item->cantidad,
                         'precio_unitario' => $item->precio_unitario,
                         'costo_unitario' => $producto?->precio_compra ?? 0,

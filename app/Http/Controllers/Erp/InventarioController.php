@@ -30,6 +30,7 @@ class InventarioController extends Controller
             'sku' => 'nullable|string|max:100',
             'stock' => 'required|integer|min:0',
             'stock_minimo' => 'nullable|integer|min:0',
+            'controla_stock' => 'sometimes|boolean',
             'precio_compra' => 'nullable|numeric|min:0',
             'precio' => 'required|numeric|min:0',
         ]);
@@ -61,6 +62,7 @@ class InventarioController extends Controller
             'sku' => 'nullable|string|max:100',
             'stock' => 'sometimes|integer|min:0',
             'stock_minimo' => 'sometimes|integer|min:0',
+            'controla_stock' => 'sometimes|boolean',
             'precio_compra' => 'sometimes|numeric|min:0',
             'precio' => 'sometimes|numeric|min:0',
         ]);
