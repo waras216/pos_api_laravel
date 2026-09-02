@@ -16,6 +16,20 @@ use Illuminate\Support\Str;
 
 class OnboardingService
 {
+    /**
+     * Nombre de la categoría de Inventario que se auto-crea por cada amenidad marcada en el
+     * onboarding del nicho hotel (debe coincidir con HOTEL_AMENIDAD_CATEGORIAS en el frontend,
+     * nicho.service.ts), para que el Room Service pueda agrupar el menú por sección (Bar, Spa...).
+     */
+    private const AMENIDAD_CATEGORIAS = [
+        'restaurante' => 'Restaurante',
+        'bar' => 'Bar',
+        'spa' => 'Spa',
+        'piscina' => 'Piscina',
+        'estacionamiento' => 'Estacionamiento',
+        'eventos' => 'Eventos',
+    ];
+
     public function __construct(private PlanCuentasService $planCuentas) {}
 
     /**
@@ -100,6 +114,19 @@ class OnboardingService
                     }
                     Habitacion::create($datos);
                 }
+            }
+        }
+
+        if ($nicho === 'hotel') {
+            foreach (array_values(array_filter($datosNicho['hotelAmenidades'] ?? [])) as $amenidad) {
+                $nombreCategoria = self::AMENIDAD_CATEGORIAS[$amenidad] ?? null;
+                if (! $nombreCategoria) {
+                    continue;
+                }
+                Categoria::withoutGlobalScopes()->firstOrCreate([
+                    'id_tenant' => $tenant->id_tenant,
+                    'nombre' => $nombreCategoria,
+                ]);
             }
         }
 

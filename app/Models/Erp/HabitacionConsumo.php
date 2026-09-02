@@ -13,6 +13,7 @@ class HabitacionConsumo extends Model
         'id_habitacion',
         'id_producto',
         'nombre',
+        'seccion',
         'precio_unitario',
         'cantidad',
     ];

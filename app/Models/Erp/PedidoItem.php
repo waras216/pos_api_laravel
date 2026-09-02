@@ -13,6 +13,7 @@ class PedidoItem extends Model
         'id_pedido',
         'id_producto',
         'descripcion',
+        'seccion',
         'cantidad',
         'precio_unitario',
         'costo_unitario',
