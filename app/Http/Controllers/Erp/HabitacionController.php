@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Erp\Estadia;
 use App\Models\Erp\Habitacion;
 use App\Models\Erp\HabitacionConsumo;
+use App\Models\Erp\HabitacionIncidencia;
 use App\Models\Erp\MovimientoStock;
 use App\Models\Erp\Pedido;
 use App\Models\Erp\PedidoItem;
@@ -13,15 +14,21 @@ use App\Models\Erp\Reserva;
 use App\Models\Producto;
 use App\Services\Erp\AsientoService;
 use App\Services\Erp\PagoVentaService;
+use App\Services\Erp\TarifaTemporadaService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class HabitacionController extends Controller
 {
-    public function __construct(private AsientoService $asientos, private PagoVentaService $pagos) {}
+    public function __construct(
+        private AsientoService $asientos,
+        private PagoVentaService $pagos,
+        private TarifaTemporadaService $tarifas,
+    ) {}
 
     private function habitacionDelTenant(Request $request, string $id): Habitacion
     {
@@ -30,7 +37,7 @@ class HabitacionController extends Controller
 
     private function conRelaciones(Habitacion $habitacion): Habitacion
     {
-        return $habitacion->load('consumos.producto');
+        return $habitacion->load(['consumos.producto', 'estadiaActiva']);
     }
 
     public function index(Request $request)
@@ -129,9 +136,17 @@ class HabitacionController extends Controller
             return response()->json(['message' => 'La habitación no está libre'], 422);
         }
 
+        if ($habitacion->estado_limpieza !== 'limpia') {
+            return response()->json(['message' => 'La habitación necesita limpieza antes del check-in'], 422);
+        }
+
         $data = $request->validate([
             'huesped' => 'required|string|max:150',
             'noches' => 'required|integer|min:1',
+            'id_cliente' => [
+                'nullable',
+                Rule::exists('clientes', 'id_cliente')->where('id_tenant', $idTenant),
+            ],
         ]);
 
         $checkIn = now()->toDateString();
@@ -149,6 +164,7 @@ class HabitacionController extends Controller
             'id_tenant' => $idTenant,
             'id_habitacion' => $habitacion->id,
             'huesped' => $data['huesped'],
+            'id_cliente' => $data['id_cliente'] ?? null,
             'check_in' => $checkIn,
             'check_out_programado' => $checkOut,
             'noches' => $data['noches'],
@@ -156,6 +172,62 @@ class HabitacionController extends Controller
         ]);
 
         return response()->json($this->conRelaciones($habitacion));
+    }
+
+    public function registrarDocumento(Request $request, string $id)
+    {
+        $idTenant = $request->user()->id_tenant;
+        $habitacion = $this->habitacionDelTenant($request, $id);
+
+        $estadia = Estadia::where('id_tenant', $idTenant)
+            ->where('id_habitacion', $habitacion->id)
+            ->where('estado', 'activa')
+            ->latest('check_in')
+            ->first();
+
+        if (! $estadia) {
+            return response()->json(['message' => 'La habitación no tiene una estancia activa'], 422);
+        }
+
+        $data = $request->validate([
+            'documento_tipo' => 'nullable|string|max:20',
+            'documento_numero' => 'nullable|string|max:50',
+            'firma' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:2048',
+        ]);
+
+        unset($data['firma']);
+
+        if ($request->hasFile('firma')) {
+            if ($estadia->firma) {
+                Storage::disk('public')->delete($estadia->firma);
+            }
+            $data['firma'] = $request->file('firma')->store('firmas', 'public');
+            $data['firmado_at'] = now();
+        }
+
+        $estadia->update($data);
+
+        return response()->json($this->conRelaciones($habitacion->fresh()));
+    }
+
+    public function estimadoHospedaje(Request $request, string $id)
+    {
+        $idTenant = $request->user()->id_tenant;
+        $habitacion = $this->habitacionDelTenant($request, $id);
+
+        $data = $request->validate([
+            'fecha_checkin' => 'nullable|date',
+            'noches' => 'required|integer|min:1',
+        ]);
+
+        $resultado = $this->tarifas->calcularCargoHospedaje(
+            $idTenant,
+            (float) ($habitacion->precio ?? 0),
+            $data['fecha_checkin'] ?? now()->toDateString(),
+            $data['noches']
+        );
+
+        return response()->json($resultado);
     }
 
     public function agregarConsumo(Request $request, string $id)
@@ -236,6 +308,98 @@ class HabitacionController extends Controller
         return response()->json($this->conRelaciones($habitacion));
     }
 
+    public function limpieza(Request $request, string $id)
+    {
+        $habitacion = $this->habitacionDelTenant($request, $id);
+
+        $data = $request->validate([
+            'estado' => 'required|in:limpia,sucia,en_limpieza,inspeccion',
+        ]);
+
+        $habitacion->update(['estado_limpieza' => $data['estado']]);
+
+        return response()->json($this->conRelaciones($habitacion));
+    }
+
+    public function incidencias(Request $request)
+    {
+        $idTenant = $request->user()->id_tenant;
+
+        $query = HabitacionIncidencia::where('id_tenant', $idTenant)
+            ->with('habitacion:id,numero,tipo');
+
+        if ($request->query('estado')) {
+            $query->where('estado', $request->query('estado'));
+        }
+
+        return response()->json(
+            $query->orderByRaw("estado = 'abierta' desc")->latest()->get()
+        );
+    }
+
+    public function reportarIncidencia(Request $request, string $id)
+    {
+        $idTenant = $request->user()->id_tenant;
+        $habitacion = $this->habitacionDelTenant($request, $id);
+
+        $data = $request->validate([
+            'titulo' => 'required|string|max:150',
+            'descripcion' => 'nullable|string|max:500',
+            'prioridad' => 'sometimes|in:baja,media,alta',
+            'fuera_de_servicio' => 'sometimes|boolean',
+        ]);
+
+        $fueraDeServicio = $data['fuera_de_servicio'] ?? false;
+
+        if ($fueraDeServicio) {
+            if (! in_array($habitacion->estado, ['libre', 'mantenimiento'])) {
+                return response()->json(['message' => 'No se puede poner fuera de servicio una habitación con estancia activa'], 422);
+            }
+            $habitacion->update(['estado' => 'mantenimiento']);
+        }
+
+        $incidencia = HabitacionIncidencia::create([
+            'id_tenant' => $idTenant,
+            'id_habitacion' => $habitacion->id,
+            'titulo' => $data['titulo'],
+            'descripcion' => $data['descripcion'] ?? null,
+            'prioridad' => $data['prioridad'] ?? 'media',
+            'fuera_de_servicio' => $fueraDeServicio,
+            'estado' => 'abierta',
+        ]);
+
+        return response()->json($incidencia->load('habitacion:id,numero,tipo'), 201);
+    }
+
+    public function resolverIncidencia(Request $request, string $incidenciaId)
+    {
+        $idTenant = $request->user()->id_tenant;
+
+        $incidencia = HabitacionIncidencia::where('id_tenant', $idTenant)->findOrFail($incidenciaId);
+
+        if ($incidencia->estado === 'resuelta') {
+            return response()->json(['message' => 'Esta incidencia ya está resuelta'], 422);
+        }
+
+        $incidencia->update(['estado' => 'resuelta', 'resuelta_at' => now()]);
+
+        if ($incidencia->fuera_de_servicio) {
+            $habitacion = Habitacion::where('id_tenant', $idTenant)->find($incidencia->id_habitacion);
+
+            $quedanAbiertas = HabitacionIncidencia::where('id_tenant', $idTenant)
+                ->where('id_habitacion', $incidencia->id_habitacion)
+                ->where('fuera_de_servicio', true)
+                ->where('estado', 'abierta')
+                ->exists();
+
+            if ($habitacion && $habitacion->estado === 'mantenimiento' && ! $quedanAbiertas) {
+                $habitacion->update(['estado' => 'libre']);
+            }
+        }
+
+        return response()->json($incidencia->load('habitacion:id,numero,tipo'));
+    }
+
     public function checkOut(Request $request, string $id)
     {
         $idTenant = $request->user()->id_tenant;
@@ -247,7 +411,14 @@ class HabitacionController extends Controller
         }
 
         $consumos = $habitacion->consumos()->get();
-        $cargoHospedaje = (float) ($habitacion->precio ?? 0) * (float) ($habitacion->noches ?? 0);
+        $cargoHospedaje = $habitacion->check_in
+            ? $this->tarifas->calcularCargoHospedaje(
+                $idTenant,
+                (float) ($habitacion->precio ?? 0),
+                $habitacion->check_in->toDateString(),
+                (int) ($habitacion->noches ?? 0)
+            )['total']
+            : 0.0;
 
         $pedido = null;
 
@@ -364,6 +535,7 @@ class HabitacionController extends Controller
         $habitacion->consumos()->delete();
         $habitacion->update([
             'estado' => 'libre',
+            'estado_limpieza' => 'sucia',
             'huesped' => null,
             'check_in' => null,
             'check_out' => null,
@@ -380,6 +552,70 @@ class HabitacionController extends Controller
         ]);
     }
 
+    public function reporteOcupacion(Request $request)
+    {
+        $idTenant = $request->user()->id_tenant;
+
+        $data = $request->validate([
+            'desde' => 'nullable|date',
+            'hasta' => 'nullable|date|after_or_equal:desde',
+        ]);
+
+        $desde = isset($data['desde']) ? Carbon::parse($data['desde'])->startOfDay() : now()->startOfMonth();
+        $hasta = isset($data['hasta']) ? Carbon::parse($data['hasta'])->startOfDay() : now()->startOfDay();
+
+        $totalHabitaciones = Habitacion::where('id_tenant', $idTenant)->count();
+
+        $estadias = Estadia::where('id_tenant', $idTenant)
+            ->with('habitacion:id,precio')
+            ->whereDate('check_in', '<=', $hasta->toDateString())
+            ->where(function ($q) use ($desde) {
+                $q->whereNull('check_out_real')->orWhereDate('check_out_real', '>=', $desde->toDateString());
+            })
+            ->get();
+
+        $nochesVendidas = 0;
+        $ingresosHospedaje = 0.0;
+        $porDia = [];
+
+        for ($d = $desde->copy(); $d->lte($hasta); $d->addDay()) {
+            $ocupadasHoy = 0;
+
+            foreach ($estadias as $estadia) {
+                $checkIn = Carbon::parse($estadia->check_in);
+                $limite = $estadia->check_out_real ? Carbon::parse($estadia->check_out_real) : Carbon::parse($estadia->check_out_programado);
+
+                if ($checkIn->lte($d) && $limite->gt($d)) {
+                    $ocupadasHoy++;
+                    $noches = max((int) $estadia->noches, 1);
+                    $tarifaNoche = $estadia->total_hospedaje !== null
+                        ? $estadia->total_hospedaje / $noches
+                        : (float) ($estadia->habitacion?->precio ?? 0);
+                    $ingresosHospedaje += $tarifaNoche;
+                }
+            }
+
+            $nochesVendidas += $ocupadasHoy;
+            $porDia[] = ['fecha' => $d->toDateString(), 'ocupadas' => $ocupadasHoy, 'total_habitaciones' => $totalHabitaciones];
+        }
+
+        $numDias = $desde->diffInDays($hasta) + 1;
+        $nochesDisponibles = $totalHabitaciones * $numDias;
+
+        return response()->json([
+            'desde' => $desde->toDateString(),
+            'hasta' => $hasta->toDateString(),
+            'total_habitaciones' => $totalHabitaciones,
+            'noches_disponibles' => $nochesDisponibles,
+            'noches_vendidas' => $nochesVendidas,
+            'ingresos_hospedaje' => round($ingresosHospedaje, 2),
+            'ocupacion_pct' => $nochesDisponibles > 0 ? round(($nochesVendidas / $nochesDisponibles) * 100, 1) : 0,
+            'adr' => $nochesVendidas > 0 ? round($ingresosHospedaje / $nochesVendidas, 2) : 0,
+            'revpar' => $nochesDisponibles > 0 ? round($ingresosHospedaje / $nochesDisponibles, 2) : 0,
+            'por_dia' => $porDia,
+        ]);
+    }
+
     public function historial(Request $request)
     {
         $estadias = Estadia::where('id_tenant', $request->user()->id_tenant)
@@ -389,6 +625,20 @@ class HabitacionController extends Controller
             ->get();
 
         return response()->json($estadias);
+    }
+
+    public function historialCliente(Request $request, string $idCliente)
+    {
+        $estadias = Estadia::where('id_tenant', $request->user()->id_tenant)
+            ->where('id_cliente', $idCliente)
+            ->with('habitacion:id,numero,tipo')
+            ->orderByDesc('check_in')
+            ->get();
+
+        return response()->json([
+            'total_estadias' => $estadias->count(),
+            'estadias' => $estadias,
+        ]);
     }
 
     public function disponibilidad(Request $request)

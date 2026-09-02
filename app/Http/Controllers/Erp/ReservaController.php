@@ -31,6 +31,10 @@ class ReservaController extends Controller
                 Rule::exists('erp_habitaciones', 'id')->where('id_tenant', $idTenant),
             ],
             'huesped' => 'required|string|max:150',
+            'id_cliente' => [
+                'nullable',
+                Rule::exists('clientes', 'id_cliente')->where('id_tenant', $idTenant),
+            ],
             'telefono' => 'nullable|string|max:20',
             'fecha_checkin' => 'required|date|after_or_equal:today',
             'noches' => 'required|integer|min:1',
@@ -52,6 +56,7 @@ class ReservaController extends Controller
             'id_tenant' => $idTenant,
             'id_habitacion' => $habitacion->id,
             'huesped' => $data['huesped'],
+            'id_cliente' => $data['id_cliente'] ?? null,
             'telefono' => $data['telefono'] ?? null,
             'fecha_checkin' => $fechaCheckin,
             'fecha_checkout' => $fechaCheckout,
@@ -91,6 +96,10 @@ class ReservaController extends Controller
             return response()->json(['message' => 'La habitación no está libre para hacer el check-in'], 422);
         }
 
+        if ($habitacion->estado_limpieza !== 'limpia') {
+            return response()->json(['message' => 'La habitación necesita limpieza antes del check-in'], 422);
+        }
+
         $checkIn = now()->toDateString();
         $checkOut = now()->addDays($reserva->noches)->toDateString();
 
@@ -106,6 +115,7 @@ class ReservaController extends Controller
             'id_tenant' => $idTenant,
             'id_habitacion' => $habitacion->id,
             'huesped' => $reserva->huesped,
+            'id_cliente' => $reserva->id_cliente,
             'check_in' => $checkIn,
             'check_out_programado' => $checkOut,
             'noches' => $reserva->noches,

@@ -19,6 +19,7 @@ class Habitacion extends Model
         'precio',
         'piso',
         'estado',
+        'estado_limpieza',
         'huesped',
         'check_in',
         'check_out',
@@ -39,6 +40,11 @@ class Habitacion extends Model
     public function estadias()
     {
         return $this->hasMany(Estadia::class, 'id_habitacion');
+    }
+
+    public function estadiaActiva()
+    {
+        return $this->hasOne(Estadia::class, 'id_habitacion')->where('estado', 'activa')->latestOfMany('check_in');
     }
 
     public function reservas()

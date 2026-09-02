@@ -26,6 +26,10 @@ class Estadia extends Model
         'total',
         'id_pedido',
         'estado',
+        'documento_tipo',
+        'documento_numero',
+        'firma',
+        'firmado_at',
     ];
 
     protected $casts = [
@@ -35,7 +39,15 @@ class Estadia extends Model
         'total_hospedaje' => 'float',
         'total_consumos' => 'float',
         'total' => 'float',
+        'firmado_at' => 'datetime',
     ];
+
+    protected $appends = ['firma_url'];
+
+    public function getFirmaUrlAttribute(): ?string
+    {
+        return $this->firma ? \Storage::disk('public')->url($this->firma) : null;
+    }
 
     public function habitacion()
     {

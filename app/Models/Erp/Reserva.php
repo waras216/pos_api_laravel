@@ -2,6 +2,7 @@
 
 namespace App\Models\Erp;
 
+use App\Models\Cliente;
 use App\Models\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Model;
 
@@ -15,6 +16,7 @@ class Reserva extends Model
         'id_tenant',
         'id_habitacion',
         'huesped',
+        'id_cliente',
         'telefono',
         'fecha_checkin',
         'fecha_checkout',
@@ -31,5 +33,10 @@ class Reserva extends Model
     public function habitacion()
     {
         return $this->belongsTo(Habitacion::class, 'id_habitacion');
+    }
+
+    public function cliente()
+    {
+        return $this->belongsTo(Cliente::class, 'id_cliente', 'id_cliente');
     }
 }
