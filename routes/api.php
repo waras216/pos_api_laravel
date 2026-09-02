@@ -38,6 +38,7 @@ use App\Http\Controllers\Erp\MesaController;
 use App\Http\Controllers\Erp\HabitacionController;
 use App\Http\Controllers\Erp\ReservaController;
 use App\Http\Controllers\Erp\TarifaTemporadaController;
+use App\Http\Controllers\Erp\SolicitudHuespedController;
 use App\Http\Controllers\Erp\RecetaController;
 use App\Http\Controllers\Erp\EmpleadoController;
 use App\Http\Controllers\Erp\OrdenProduccionController;
@@ -316,6 +317,9 @@ Route::macro('permisoResourceSinVer', function (string $uri, string $controller,
             Route::get('habitaciones/incidencias', [HabitacionController::class, 'incidencias'])->middleware('permiso:erp_ventas.ver');
             Route::post('habitaciones/{id}/incidencias', [HabitacionController::class, 'reportarIncidencia'])->middleware('permiso:erp_ventas.crear');
             Route::patch('habitaciones/incidencias/{incidenciaId}/resolver', [HabitacionController::class, 'resolverIncidencia'])->middleware('permiso:erp_ventas.editar');
+            Route::get('habitaciones/solicitudes', [SolicitudHuespedController::class, 'index'])->middleware('permiso:erp_ventas.ver');
+            Route::post('habitaciones/{id}/solicitudes', [SolicitudHuespedController::class, 'store'])->middleware('permiso:erp_ventas.crear');
+            Route::patch('habitaciones/solicitudes/{id}/estado', [SolicitudHuespedController::class, 'cambiarEstado'])->middleware('permiso:erp_ventas.editar');
             Route::patch('habitaciones/{id}/marcar-salida', [HabitacionController::class, 'marcarSalida'])->middleware('permiso:erp_ventas.editar');
             Route::post('habitaciones/{id}/check-out', [HabitacionController::class, 'checkOut'])->middleware('permiso:erp_ventas.crear');
 
