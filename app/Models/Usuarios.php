@@ -25,6 +25,7 @@ class Usuarios extends Authenticatable
         'id_tenant',
         'nombre',
         'email',
+        'telefono',
         'password',
         'google2fa_secret',
         'foto_perfil',

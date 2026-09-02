@@ -12,12 +12,22 @@ class InventarioController extends Controller
 {
     public function index(Request $request)
     {
-        return response()->json(
-            Producto::where('id_tenant', $request->user()->id_tenant)
-                ->with('categoria')
-                ->latest('id_productos')
-                ->get()
-        );
+        $productos = Producto::where('id_tenant', $request->user()->id_tenant)
+            ->with('categoria')
+            ->latest('id_productos');
+
+        // Filtro opcional para búsqueda global (ver shell-layout.component.ts).
+        // Sigue devolviendo el arreglo completo sin paginar a propósito: este
+        // mismo endpoint lo consumen también el catálogo POS y los terminales
+        // de hotel/restaurante/farmacia, que necesitan la lista entera.
+        $productos->when($request->filled('search'), function ($q) use ($request) {
+            $q->where(function ($qq) use ($request) {
+                $qq->whereLike('nombre', '%' . $request->search . '%')
+                   ->orWhereLike('sku', '%' . $request->search . '%');
+            });
+        });
+
+        return response()->json($productos->get());
     }
 
     public function store(Request $request)
@@ -30,7 +40,11 @@ class InventarioController extends Controller
             'sku' => 'nullable|string|max:100',
             'stock' => 'required|integer|min:0',
             'stock_minimo' => 'nullable|integer|min:0',
+<<<<<<< HEAD
             'controla_stock' => 'sometimes|boolean',
+=======
+            'controla_stock' => 'nullable|boolean',
+>>>>>>> 4adda57d9da8fedd6f4a36ddfd3dc430167b4a0a
             'precio_compra' => 'nullable|numeric|min:0',
             'precio' => 'required|numeric|min:0',
         ]);
@@ -87,6 +101,7 @@ class InventarioController extends Controller
         $data = $request->validate([
             'cantidad' => 'required|integer|not_in:0',
             'motivo' => 'required|string|max:30',
+            'operacion' => 'nullable|string|max:30',
         ]);
 
         $nuevoStock = $item->stock + $data['cantidad'];
@@ -103,6 +118,7 @@ class InventarioController extends Controller
             'tipo' => 'ajuste',
             'cantidad' => abs($data['cantidad']),
             'motivo' => $data['motivo'],
+            'operacion' => $data['operacion'] ?? null,
             'referencia' => null,
             'stock_resultante' => $nuevoStock,
         ]);

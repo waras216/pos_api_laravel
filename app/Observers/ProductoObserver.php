@@ -7,6 +7,9 @@ use App\Models\Rol;
 use App\Models\Usuarios;
 use App\Notifications\StockBajoNotification;
 use App\Services\IntegracionService;
+use App\Services\Whatsapp\WhatsappDriverInterface;
+use App\Services\Whatsapp\WhatsappException;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Centraliza la alerta de stock bajo en un solo lugar en vez de repetir el
@@ -16,6 +19,8 @@ use App\Services\IntegracionService;
  */
 class ProductoObserver
 {
+    public function __construct(private WhatsappDriverInterface $whatsapp) {}
+
     public function updated(Producto $producto): void
     {
         if (! $producto->wasChanged('stock')) {
@@ -29,15 +34,33 @@ class ProductoObserver
         // subsiguiente mientras ya está bajo — evita spam.
         $cruzoElUmbral = $stockActual <= $producto->stock_minimo && $stockAnterior > $producto->stock_minimo;
 
-        if (! $cruzoElUmbral || ! IntegracionService::conectada($producto->id_tenant, 'email')) {
+        if (! $cruzoElUmbral) {
             return;
         }
 
         $idsAdmin = Rol::idsAdminTenant($producto->id_tenant);
-        $admins = Usuarios::whereIn('id_usuario', $idsAdmin)->whereNotNull('email')->get();
+        $admins = Usuarios::whereIn('id_usuario', $idsAdmin)->get();
 
-        foreach ($admins as $admin) {
-            $admin->notify(new StockBajoNotification($producto));
+        if (IntegracionService::conectada($producto->id_tenant, 'email')) {
+            foreach ($admins->whereNotNull('email') as $admin) {
+                $admin->notify(new StockBajoNotification($producto));
+            }
+        }
+
+        if (IntegracionService::conectada($producto->id_tenant, 'whatsapp')) {
+            $mensaje = "Alerta de inventario: \"{$producto->nombre}\""
+                . ($producto->sku ? " (SKU {$producto->sku})" : '')
+                . " llegó a stock bajo. Stock actual: {$producto->stock}, mínimo: {$producto->stock_minimo}.";
+
+            foreach ($admins->whereNotNull('telefono') as $admin) {
+                try {
+                    $this->whatsapp->enviar($producto->id_tenant, $admin->telefono, $mensaje);
+                } catch (WhatsappException $e) {
+                    Log::warning("Alerta de stock bajo: envío de WhatsApp falló para producto #{$producto->id_productos}", [
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
         }
     }
 }

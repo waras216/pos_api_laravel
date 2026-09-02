@@ -77,12 +77,17 @@ class OnboardingService
             ['nombre' => 'Email Marketing', 'tipo' => 'email'],
             ['nombre' => 'Google Calendar', 'tipo' => 'calendario'],
             ['nombre' => 'Almacenamiento en la nube', 'tipo' => 'almacenamiento'],
+            // El token es lo que autentica el formulario público de su landing
+            // (WordPress u otra) contra PublicFormularioController -- se genera
+            // desde ya para que "Conectar" solo sea prender el interruptor.
+            ['nombre' => 'Sitio Web', 'tipo' => 'sitio_web', 'configuracion' => ['token' => Str::random(40)]],
         ] as $integracion) {
             Integracion::create([
                 'id_tenant' => $tenant->id_tenant,
                 'nombre' => $integracion['nombre'],
                 'tipo' => $integracion['tipo'],
                 'estado' => 'desconectada',
+                'configuracion' => $integracion['configuracion'] ?? null,
             ]);
         }
 
@@ -133,5 +138,33 @@ class OnboardingService
                 }
             }
         }
+
+        if ($nicho === 'hotel' && ! empty($datosNicho['hotelAmenidades'])) {
+            foreach ($datosNicho['hotelAmenidades'] as $amenidad) {
+                $nombre = self::AMENIDAD_CATEGORIAS[$amenidad] ?? null;
+                if (! $nombre) {
+                    continue;
+                }
+                Categoria::withoutGlobalScopes()->firstOrCreate(
+                    ['id_tenant' => $tenant->id_tenant, 'nombre' => $nombre],
+                    ['activo' => true]
+                );
+            }
+        }
     }
+
+    /**
+     * Categorías de producto que se auto-crean en el Inventario del hotel
+     * por cada amenidad marcada en el onboarding -- así el consumo de esas
+     * áreas (bar, spa, etc.) se puede filtrar desde Room Service sin que el
+     * hotel tenga que dar de alta las categorías a mano.
+     */
+    private const AMENIDAD_CATEGORIAS = [
+        'restaurante' => 'Restaurante',
+        'bar' => 'Bar',
+        'spa' => 'Spa',
+        'piscina' => 'Piscina',
+        'estacionamiento' => 'Estacionamiento',
+        'eventos' => 'Eventos',
+    ];
 }

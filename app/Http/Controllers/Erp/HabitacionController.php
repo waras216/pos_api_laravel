@@ -3,14 +3,17 @@
 namespace App\Http\Controllers\Erp;
 
 use App\Http\Controllers\Controller;
+use App\Models\Erp\Estadia;
 use App\Models\Erp\Habitacion;
 use App\Models\Erp\HabitacionConsumo;
 use App\Models\Erp\MovimientoStock;
 use App\Models\Erp\Pedido;
 use App\Models\Erp\PedidoItem;
+use App\Models\Erp\Reserva;
 use App\Models\Producto;
 use App\Services\Erp\AsientoService;
 use App\Services\Erp\PagoVentaService;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -56,7 +59,14 @@ class HabitacionController extends Controller
 
         $data['id_tenant'] = $idTenant;
 
-        return response()->json(Habitacion::create($data), 201);
+        $habitacion = Habitacion::create($data);
+
+        // create() solo trae los atributos que se enviaron: 'estado', 'tipo' y
+        // 'piso' tienen default a nivel de columna (ver migración) que no queda
+        // reflejado en el objeto en memoria sin un refresh — y el frontend
+        // asume 'consumos' siempre es un array (aunque venga vacío en un
+        // registro nuevo), no undefined.
+        return response()->json($this->conRelaciones($habitacion->refresh()), 201);
     }
 
     public function update(Request $request, string $id)
@@ -112,6 +122,7 @@ class HabitacionController extends Controller
 
     public function checkIn(Request $request, string $id)
     {
+        $idTenant = $request->user()->id_tenant;
         $habitacion = $this->habitacionDelTenant($request, $id);
 
         if ($habitacion->estado !== 'libre') {
@@ -124,13 +135,24 @@ class HabitacionController extends Controller
         ]);
 
         $checkIn = now()->toDateString();
+        $checkOut = now()->addDays($data['noches'])->toDateString();
 
         $habitacion->update([
             'estado' => 'ocupada',
             'huesped' => $data['huesped'],
             'check_in' => $checkIn,
-            'check_out' => now()->addDays($data['noches'])->toDateString(),
+            'check_out' => $checkOut,
             'noches' => $data['noches'],
+        ]);
+
+        Estadia::create([
+            'id_tenant' => $idTenant,
+            'id_habitacion' => $habitacion->id,
+            'huesped' => $data['huesped'],
+            'check_in' => $checkIn,
+            'check_out_programado' => $checkOut,
+            'noches' => $data['noches'],
+            'estado' => 'activa',
         ]);
 
         return response()->json($this->conRelaciones($habitacion));
@@ -186,6 +208,23 @@ class HabitacionController extends Controller
                 $consumo->decrement('cantidad', $cantidad);
             }
         }
+
+        return response()->json($this->conRelaciones($habitacion));
+    }
+
+    public function marcarSalida(Request $request, string $id)
+    {
+        $habitacion = $this->habitacionDelTenant($request, $id);
+
+        $data = $request->validate([
+            'estado' => 'required|in:checkout,ocupada',
+        ]);
+
+        if (! in_array($habitacion->estado, ['ocupada', 'checkout'])) {
+            return response()->json(['message' => 'La habitación no tiene una estancia activa'], 422);
+        }
+
+        $habitacion->update(['estado' => $data['estado']]);
 
         return response()->json($this->conRelaciones($habitacion));
     }
@@ -314,6 +353,26 @@ class HabitacionController extends Controller
             });
         }
 
+        $estadia = Estadia::where('id_tenant', $idTenant)
+            ->where('id_habitacion', $habitacion->id)
+            ->where('estado', 'activa')
+            ->latest('check_in')
+            ->first();
+
+        if ($estadia) {
+            $totalConsumos = $consumos->sum(fn ($c) => $c->cantidad * $c->precio_unitario);
+
+            $estadia->update([
+                'check_out_real' => now(),
+                'total_hospedaje' => $cargoHospedaje,
+                'total_consumos' => $totalConsumos,
+                'total' => $cargoHospedaje + $totalConsumos,
+                'id_cliente' => $pedido?->id_cliente,
+                'id_pedido' => $pedido?->id,
+                'estado' => 'finalizada',
+            ]);
+        }
+
         $habitacion->consumos()->delete();
         $habitacion->update([
             'estado' => 'libre',
@@ -330,6 +389,81 @@ class HabitacionController extends Controller
         return response()->json([
             'habitacion' => $this->conRelaciones($habitacion->fresh()),
             'pedido' => $pedido?->load(['cliente', 'items.producto', 'cajero', 'pagos']),
+        ]);
+    }
+
+    public function historial(Request $request)
+    {
+        $estadias = Estadia::where('id_tenant', $request->user()->id_tenant)
+            ->with(['habitacion:id,numero,tipo', 'cliente:id_cliente,nombre'])
+            ->orderByDesc('check_in')
+            ->limit(200)
+            ->get();
+
+        return response()->json($estadias);
+    }
+
+    public function disponibilidad(Request $request)
+    {
+        $idTenant = $request->user()->id_tenant;
+
+        $data = $request->validate([
+            'desde' => 'nullable|date',
+            'hasta' => 'nullable|date|after_or_equal:desde',
+        ]);
+
+        $desde = isset($data['desde']) ? Carbon::parse($data['desde'])->startOfDay() : now()->startOfDay();
+        $hasta = isset($data['hasta']) ? Carbon::parse($data['hasta'])->startOfDay() : $desde->copy()->addDays(13);
+
+        $dias = [];
+        for ($d = $desde->copy(); $d->lte($hasta); $d->addDay()) {
+            $dias[] = $d->toDateString();
+        }
+
+        $habitaciones = Habitacion::where('id_tenant', $idTenant)->orderBy('numero')->get();
+
+        $reservasPorHabitacion = Reserva::where('id_tenant', $idTenant)
+            ->where('estado', 'pendiente')
+            ->where('fecha_checkin', '<=', $hasta->toDateString())
+            ->where('fecha_checkout', '>', $desde->toDateString())
+            ->get()
+            ->groupBy('id_habitacion');
+
+        $resultado = $habitaciones->map(function (Habitacion $habitacion) use ($dias, $reservasPorHabitacion) {
+            $reservas = $reservasPorHabitacion->get($habitacion->id, collect());
+            $estadosPorDia = [];
+
+            foreach ($dias as $dia) {
+                if ($habitacion->estado === 'mantenimiento') {
+                    $estadosPorDia[$dia] = 'mantenimiento';
+                    continue;
+                }
+
+                $enEstanciaActiva = in_array($habitacion->estado, ['ocupada', 'checkout'])
+                    && $habitacion->check_in && $habitacion->check_out
+                    && $dia >= $habitacion->check_in->toDateString()
+                    && $dia < $habitacion->check_out->toDateString();
+
+                if ($enEstanciaActiva) {
+                    $estadosPorDia[$dia] = 'ocupada';
+                    continue;
+                }
+
+                $enReserva = $reservas->first(fn (Reserva $r) => $dia >= $r->fecha_checkin->toDateString() && $dia < $r->fecha_checkout->toDateString());
+                $estadosPorDia[$dia] = $enReserva ? 'reservada' : 'libre';
+            }
+
+            return [
+                'id' => $habitacion->id,
+                'numero' => $habitacion->numero,
+                'tipo' => $habitacion->tipo,
+                'dias' => $estadosPorDia,
+            ];
+        });
+
+        return response()->json([
+            'dias' => $dias,
+            'habitaciones' => $resultado,
         ]);
     }
 }

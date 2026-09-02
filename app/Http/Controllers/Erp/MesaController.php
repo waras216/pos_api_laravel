@@ -55,7 +55,11 @@ class MesaController extends Controller
 
         $data['id_tenant'] = $idTenant;
 
-        return response()->json(Mesa::create($data), 201);
+        $mesa = Mesa::create($data);
+
+        // Igual que en HabitacionController::store: 'estado' tiene default a
+        // nivel de columna, así que sin refresh el objeto en memoria no lo trae.
+        return response()->json($this->conRelaciones($mesa->refresh()), 201);
     }
 
     public function destroy(Request $request, string $id)
@@ -204,7 +208,7 @@ class MesaController extends Controller
                 'required',
                 Rule::exists('clientes', 'id_cliente')->where('id_tenant', $idTenant),
             ],
-            'pagos' => 'required|array',
+            'pagos' => 'present|array',
             'pagos.*.metodo_pago' => ['required_with:pagos', Rule::in(PagoVentaService::METODOS)],
             'pagos.*.monto' => 'required_with:pagos|numeric|min:0.01',
         ]);
@@ -216,7 +220,7 @@ class MesaController extends Controller
                     continue;
                 }
                 $producto = Producto::where('id_tenant', $idTenant)->findOrFail($item->id_producto);
-                if ($producto->stock < $item->cantidad) {
+                if ($producto->controla_stock && $producto->stock < $item->cantidad) {
                     throw ValidationException::withMessages([
                         'items' => "Stock insuficiente para {$producto->nombre} (disponible: {$producto->stock})",
                     ]);
@@ -229,6 +233,7 @@ class MesaController extends Controller
                 'id_cliente' => $data['id_cliente'],
                 'fecha' => now()->toDateString(),
                 'estado' => 'facturado',
+                'canal' => 'comedor',
                 'total' => 0,
             ]);
 
@@ -246,7 +251,7 @@ class MesaController extends Controller
                     'subtotal' => $subtotal,
                 ]);
 
-                if ($item->id_producto && isset($productos[$item->id_producto])) {
+                if ($item->id_producto && isset($productos[$item->id_producto]) && $productos[$item->id_producto]->controla_stock) {
                     $producto = $productos[$item->id_producto];
                     $producto->decrement('stock', $item->cantidad);
 

@@ -27,6 +27,7 @@ use App\Http\Controllers\MembresiaController;
 use App\Http\Controllers\PassportAuthController;
 use App\Http\Controllers\SuscripcionController;
 use App\Http\Controllers\StripeWebhookController;
+use App\Http\Controllers\PublicFormularioController;
 use App\Http\Controllers\Erp\InventarioController;
 use App\Http\Controllers\Erp\OrdenCompraController;
 use App\Http\Controllers\Erp\ProveedorController;
@@ -35,6 +36,7 @@ use App\Http\Controllers\Erp\FacturaController;
 use App\Http\Controllers\Erp\PedidoController;
 use App\Http\Controllers\Erp\MesaController;
 use App\Http\Controllers\Erp\HabitacionController;
+use App\Http\Controllers\Erp\ReservaController;
 use App\Http\Controllers\Erp\RecetaController;
 use App\Http\Controllers\Erp\EmpleadoController;
 use App\Http\Controllers\Erp\OrdenProduccionController;
@@ -85,6 +87,14 @@ Route::macro('permisoResourceSinVer', function (string $uri, string $controller,
  // no un usuario logueado). La autenticidad se valida por firma dentro del
  // controller (Stripe-Signature + STRIPE_WEBHOOK_SECRET), no por token.
  Route::post('/stripe/webhook', [StripeWebhookController::class, 'handle']);
+
+ // Formulario "web-to-lead": fuera de auth:sanctum a propósito (lo llama la
+ // landing externa del tenant, no un usuario logueado de STRATO). La
+ // autenticidad la da el token en la URL, ver PublicFormularioController.
+ // CORS abierto solo para esta ruta vía AllowPublicFormularioCors (ver
+ // bootstrap/app.php), no toca config/cors.php.
+ Route::post('/public/formularios/{token}/leads', [PublicFormularioController::class, 'crearLead'])
+     ->middleware('throttle:20,1');
 
  // Authorization Code + PKCE (Fase 3, ver §06). /oauth/authorize y la mitad
  // "cruda" de /oauth/token los registra Passport solo; estos son la capa
@@ -203,6 +213,8 @@ Route::macro('permisoResourceSinVer', function (string $uri, string $controller,
         // Integraciones
         Route::get('integraciones', [IntegracionController::class, 'index'])->middleware('permiso:integraciones.ver');
         Route::patch('integraciones/{id}/toggle', [IntegracionController::class, 'toggle'])->middleware('permiso:integraciones.editar');
+        Route::put('integraciones/{id}/configuracion', [IntegracionController::class, 'actualizarConfiguracion'])->middleware('permiso:integraciones.editar');
+        Route::post('integraciones/{id}/regenerar-token', [IntegracionController::class, 'regenerarToken'])->middleware('permiso:integraciones.editar');
         Route::post('integraciones/google-calendar/conectar', [GoogleAuthController::class, 'conectarCalendario'])->middleware('permiso:integraciones.editar');
         Route::post('integraciones/whatsapp-baileys/iniciar', [WhatsappBaileysController::class, 'iniciar'])->middleware('permiso:integraciones.editar');
         Route::get('integraciones/whatsapp-baileys/estado', [WhatsappBaileysController::class, 'estado'])->middleware('permiso:integraciones.ver');
@@ -284,12 +296,21 @@ Route::macro('permisoResourceSinVer', function (string $uri, string $controller,
             Route::patch('habitaciones/{id}', [HabitacionController::class, 'update'])->middleware('permiso:erp_ventas.editar');
             Route::delete('habitaciones/{id}', [HabitacionController::class, 'destroy'])->middleware('permiso:erp_ventas.eliminar');
             Route::get('habitaciones/papelera', [HabitacionController::class, 'papelera'])->middleware('permiso:erp_ventas.eliminar');
+            Route::get('habitaciones/historial', [HabitacionController::class, 'historial'])->middleware('permiso:erp_ventas.ver');
+            Route::get('habitaciones/disponibilidad', [HabitacionController::class, 'disponibilidad'])->middleware('permiso:erp_ventas.ver');
             Route::patch('habitaciones/{id}/restaurar', [HabitacionController::class, 'restaurar'])->middleware('permiso:erp_ventas.eliminar');
             Route::patch('habitaciones/{id}/check-in', [HabitacionController::class, 'checkIn'])->middleware('permiso:erp_ventas.crear');
             Route::post('habitaciones/{id}/consumos', [HabitacionController::class, 'agregarConsumo'])->middleware('permiso:erp_ventas.crear');
             Route::delete('habitaciones/{id}/consumos/{consumoId}', [HabitacionController::class, 'quitarConsumo'])->middleware('permiso:erp_ventas.editar');
             Route::patch('habitaciones/{id}/mantenimiento', [HabitacionController::class, 'mantenimiento'])->middleware('permiso:erp_ventas.editar');
+            Route::patch('habitaciones/{id}/marcar-salida', [HabitacionController::class, 'marcarSalida'])->middleware('permiso:erp_ventas.editar');
             Route::post('habitaciones/{id}/check-out', [HabitacionController::class, 'checkOut'])->middleware('permiso:erp_ventas.crear');
+
+            // Reservas anticipadas de hotel (fecha futura, antes del check-in real).
+            Route::get('reservas', [ReservaController::class, 'index'])->middleware('permiso:erp_ventas.ver');
+            Route::post('reservas', [ReservaController::class, 'store'])->middleware('permiso:erp_ventas.crear');
+            Route::patch('reservas/{id}/cancelar', [ReservaController::class, 'cancelar'])->middleware('permiso:erp_ventas.editar');
+            Route::post('reservas/{id}/check-in', [ReservaController::class, 'checkIn'])->middleware('permiso:erp_ventas.crear');
 
             // Recetas del terminal POS de farmacia (SPRINT-39).
             Route::get('recetas', [RecetaController::class, 'index']);

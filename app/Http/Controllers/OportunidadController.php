@@ -18,11 +18,16 @@ class OportunidadController extends Controller
      */
     public function index(Request $request)
     {
-        return response()->json(
-            Oportunidad::where('id_tenant', $request->user()->id_tenant)
-            ->with(['cliente', 'pipeline', 'usuario'])
-            ->get()
-        );
+        $oportunidades = Oportunidad::where('id_tenant', $request->user()->id_tenant)
+            ->with(['cliente', 'pipeline', 'usuario']);
+
+        // Filtro opcional para búsqueda global (ver shell-layout.component.ts) —
+        // el tablero Kanban sigue pidiendo la lista completa sin este parámetro.
+        $oportunidades->when($request->filled('search'), function ($q) use ($request) {
+            $q->whereLike('titulo', '%' . $request->search . '%');
+        });
+
+        return response()->json($oportunidades->get());
     }
 
     /**
@@ -34,7 +39,7 @@ class OportunidadController extends Controller
             'id_cliente' => 'required|exists:clientes,id_cliente',
             'id_pipeline' => 'required|exists:pipelines,id_pipeline',
             'titulo' => 'required|string|max:200',
-            'valor' => 'sometimes|numeric|min:0',
+            'valor' => 'sometimes|numeric|min:0|max:999999999999.99',
             'probabilidad' => 'sometimes|numeric|min:0',
             'estado' => 'sometimes|in:abierta,ganada,perdida',
             'etapa' => 'sometimes|in:prospeccion,contacto,propuesta,negociacion,cierre',
@@ -73,7 +78,7 @@ class OportunidadController extends Controller
             'id_cliente' => 'sometimes|exists:clientes,id_cliente',
             'id_pipeline' => 'sometimes|exists:pipelines,id_pipeline',
             'titulo' => 'sometimes|string|max:200',
-            'valor' => 'sometimes|numeric|min:0',
+            'valor' => 'sometimes|numeric|min:0|max:999999999999.99',
             'probabilidad' => 'sometimes|integer|min:0|max:100',
             'estado' => 'sometimes|in:abierta,ganada,perdida',
             'etapa' => 'sometimes|in:prospeccion,contacto,propuesta,negociacion,cierre',
