@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\Rol;
+use App\Services\Erp\PlanCuentasService;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -130,5 +131,11 @@ class MasterSeeder extends Seeder
             ['id_tenant' => 1, 'id_categorias' => 3, 'nombre' => 'Papas Sabritas',  'precio' => 16.00, 'stock' => 40, 'activo' => 1, 'created_at' => now(), 'updated_at' => now()],
             ['id_tenant' => 1, 'id_categorias' => 3, 'nombre' => 'Chocolatín',      'precio' => 20.00, 'stock' => 35, 'activo' => 1, 'created_at' => now(), 'updated_at' => now()],
         ]);
+
+        // Catálogo contable: normalmente lo siembra OnboardingService::provisionarTenantYUsuario()
+        // durante el registro real, pero este tenant se crea con inserts directos, así que hay
+        // que sembrarlo a mano — si no, cualquier venta/compra/nómina revienta con
+        // "No query results for model [CuentaContable]" al buscar cuentas por código.
+        app(PlanCuentasService::class)->sembrarParaTenant(1);
     }
 }
