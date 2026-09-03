@@ -12,6 +12,7 @@ use App\Services\Whatsapp\BaileysDriver;
 use App\Services\Whatsapp\NullWhatsappDriver;
 use App\Services\Whatsapp\WhatsappDriverInterface;
 use Illuminate\Auth\Notifications\ResetPassword;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\ServiceProvider;
 use Laravel\Passport\Passport;
 
@@ -51,6 +52,12 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // Carbon no hereda el locale de la app automáticamente — sin esto,
+        // diffForHumans() (usado por CrmResumenController e
+        // Erp/DashboardController para la "actividad reciente") sale en
+        // inglés ("3 weeks ago") aunque toda la UI esté en español.
+        Carbon::setLocale(config('app.locale'));
+
         // Password grant es solo para el backend/pruebas mientras el frontend
         // sigue en Sanctum. El cliente real de la SPA usará Authorization Code + PKCE.
         Passport::enablePasswordGrant();
