@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Erp;
 use App\Http\Controllers\Controller;
 use App\Models\Erp\Comanda;
 use App\Models\Erp\ComandaItem;
+use App\Models\Erp\Habitacion;
+use App\Models\Erp\HabitacionConsumo;
 use App\Models\Erp\Mesa;
 use App\Models\Erp\MovimientoStock;
 use App\Models\Erp\Pedido;
@@ -197,7 +199,7 @@ class MesaController extends Controller
     {
         $idTenant = $request->user()->id_tenant;
         $mesa = $this->mesaDelTenant($request, $id);
-        $comanda = $mesa->comandaActiva()->with('items')->first();
+        $comanda = $mesa->comandaActiva()->with('items.producto.categoria')->first();
 
         if (! $comanda || $comanda->items->isEmpty()) {
             return response()->json(['message' => 'La mesa no tiene items para cobrar'], 422);
@@ -245,9 +247,10 @@ class MesaController extends Controller
                 PedidoItem::create([
                     'id_pedido' => $pedido->id,
                     'id_producto' => $item->id_producto,
+                    'seccion' => $item->producto?->categoria?->nombre,
                     'cantidad' => $item->cantidad,
                     'precio_unitario' => $item->precio_unitario,
-                    'costo_unitario' => $producto->precio_compra,
+                    'costo_unitario' => $item->id_producto ? ($productos[$item->id_producto]->precio_compra ?? 0) : 0,
                     'subtotal' => $subtotal,
                 ]);
 
@@ -283,6 +286,66 @@ class MesaController extends Controller
         return response()->json([
             'mesa' => $this->conRelaciones($mesa->fresh()),
             'pedido' => $pedido->load(['cliente', 'items.producto']),
+        ]);
+    }
+
+    /**
+     * Transfiere la comanda activa de la mesa a la cuenta de una habitación ocupada, en vez de
+     * cobrarla directamente — para el restaurante de un hotel, donde el comensal suele ser un
+     * huésped que paga todo junto al hacer check-out (ver [[HabitacionController::checkOut]]).
+     * No descuenta stock ni genera Pedido/pago aquí: se comporta igual que un consumo de Room
+     * Service agregado uno por uno, y sigue el mismo ciclo de vida que esos (se liquida en el
+     * checkout de la habitación).
+     */
+    public function cargarHabitacion(Request $request, string $id)
+    {
+        $idTenant = $request->user()->id_tenant;
+        $mesa = $this->mesaDelTenant($request, $id);
+        $comanda = $mesa->comandaActiva()->with('items.producto.categoria')->first();
+
+        if (! $comanda || $comanda->items->isEmpty()) {
+            return response()->json(['message' => 'La mesa no tiene items para cargar'], 422);
+        }
+
+        $data = $request->validate([
+            'id_habitacion' => [
+                'required',
+                Rule::exists('erp_habitaciones', 'id')->where('id_tenant', $idTenant),
+            ],
+        ]);
+
+        $habitacion = Habitacion::where('id_tenant', $idTenant)->findOrFail($data['id_habitacion']);
+        if ($habitacion->estado !== 'ocupada') {
+            return response()->json(['message' => 'La habitación no tiene una estancia activa'], 422);
+        }
+
+        DB::transaction(function () use ($comanda, $habitacion, $mesa) {
+            foreach ($comanda->items as $item) {
+                $consumo = $item->id_producto
+                    ? $habitacion->consumos()->where('id_producto', $item->id_producto)->first()
+                    : null;
+
+                if ($consumo) {
+                    $consumo->increment('cantidad', $item->cantidad);
+                } else {
+                    HabitacionConsumo::create([
+                        'id_habitacion' => $habitacion->id,
+                        'id_producto' => $item->id_producto,
+                        'nombre' => $item->nombre,
+                        'seccion' => $item->producto?->categoria?->nombre ?? 'Restaurante',
+                        'precio_unitario' => $item->precio_unitario,
+                        'cantidad' => $item->cantidad,
+                    ]);
+                }
+            }
+
+            $comanda->update(['estado' => 'cerrada']);
+            $mesa->update(['estado' => 'libre', 'mesero' => null]);
+        });
+
+        return response()->json([
+            'mesa' => $this->conRelaciones($mesa->fresh()),
+            'habitacion' => $habitacion->fresh()->load(['consumos.producto', 'estadiaActiva']),
         ]);
     }
 

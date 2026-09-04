@@ -54,6 +54,7 @@ class PedidoController extends Controller
             ],
             'items.*.cantidad' => 'required|integer|min:1',
             'items.*.precio_unitario' => 'required|numeric|min:0',
+            'items.*.seccion' => 'nullable|string|max:60',
             'estado' => 'nullable|in:pendiente,enviado,facturado',
             'canal' => 'nullable|string|max:30',
             'pagos' => 'nullable|array',
@@ -95,6 +96,7 @@ class PedidoController extends Controller
                 PedidoItem::create([
                     'id_pedido' => $pedido->id,
                     'id_producto' => $item['id_producto'],
+                    'seccion' => $item['seccion'] ?? null,
                     'cantidad' => $item['cantidad'],
                     'precio_unitario' => $item['precio_unitario'],
                     'costo_unitario' => $producto->precio_compra,

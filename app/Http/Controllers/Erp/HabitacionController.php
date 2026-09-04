@@ -614,6 +614,25 @@ class HabitacionController extends Controller
         $numDias = $desde->diffInDays($hasta) + 1;
         $nochesDisponibles = $totalHabitaciones * $numDias;
 
+        // Ingresos por sección (Bar, Restaurante, Spa...): une lo cobrado directo en mesa
+        // (MesaController::cobrar) y lo cargado a la habitación y liquidado en el check-out
+        // (HabitacionController::checkOut) — ambos etiquetan PedidoItem.seccion con la misma
+        // categoría, así que una sola agregación ya representa el negocio completo de esa sección
+        // sin importar cómo pagó el cliente. 'Hospedaje' se excluye porque ya está en
+        // ingresos_hospedaje arriba (y prorrateado por noche, no por fecha del pedido).
+        $ingresosPorSeccion = PedidoItem::whereHas('pedido', function ($q) use ($idTenant, $desde, $hasta) {
+                $q->where('id_tenant', $idTenant)
+                    ->whereDate('fecha', '>=', $desde->toDateString())
+                    ->whereDate('fecha', '<=', $hasta->toDateString());
+            })
+            ->whereNotNull('seccion')
+            ->where('seccion', '!=', 'Hospedaje')
+            ->selectRaw('seccion, SUM(subtotal) as total')
+            ->groupBy('seccion')
+            ->orderByDesc('total')
+            ->get()
+            ->map(fn ($fila) => ['seccion' => $fila->seccion, 'total' => round((float) $fila->total, 2)]);
+
         return response()->json([
             'desde' => $desde->toDateString(),
             'hasta' => $hasta->toDateString(),
@@ -625,6 +644,7 @@ class HabitacionController extends Controller
             'adr' => $nochesVendidas > 0 ? round($ingresosHospedaje / $nochesVendidas, 2) : 0,
             'revpar' => $nochesDisponibles > 0 ? round($ingresosHospedaje / $nochesDisponibles, 2) : 0,
             'por_dia' => $porDia,
+            'ingresos_por_seccion' => $ingresosPorSeccion,
         ]);
     }
 

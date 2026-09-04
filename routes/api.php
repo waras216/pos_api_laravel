@@ -291,6 +291,7 @@ Route::macro('permisoResourceSinVer', function (string $uri, string $controller,
             Route::delete('mesas/{id}/items/{itemId}', [MesaController::class, 'quitarItem'])->middleware('permiso:erp_ventas.editar');
             Route::post('mesas/{id}/enviar-cocina', [MesaController::class, 'enviarCocina'])->middleware('permiso:erp_ventas.editar');
             Route::post('mesas/{id}/cobrar', [MesaController::class, 'cobrar'])->middleware('permiso:erp_ventas.crear');
+            Route::post('mesas/{id}/cargar-habitacion', [MesaController::class, 'cargarHabitacion'])->middleware('permiso:erp_ventas.crear');
 
             // Habitaciones/room-service del terminal POS de hotel (SPRINT-39).
             Route::get('habitaciones', [HabitacionController::class, 'index']);
