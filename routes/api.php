@@ -282,7 +282,9 @@ Route::macro('permisoResourceSinVer', function (string $uri, string $controller,
 
             // Mesas/comandas del terminal POS de restaurante (SPRINT-39).
             Route::get('mesas', [MesaController::class, 'index']);
+            Route::get('mesas/pendientes', [MesaController::class, 'pendientes'])->middleware('permiso:erp_comandas.ver');
             Route::post('mesas', [MesaController::class, 'store'])->middleware('permiso:erp_ventas.editar');
+            Route::patch('mesas/{id}', [MesaController::class, 'update'])->middleware('permiso:erp_ventas.editar');
             Route::delete('mesas/{id}', [MesaController::class, 'destroy'])->middleware('permiso:erp_ventas.eliminar');
             Route::patch('mesas/{id}/abrir', [MesaController::class, 'abrir'])->middleware('permiso:erp_ventas.crear');
             Route::patch('mesas/{id}/pedir-cuenta', [MesaController::class, 'pedirCuenta'])->middleware('permiso:erp_ventas.editar');
@@ -290,6 +292,7 @@ Route::macro('permisoResourceSinVer', function (string $uri, string $controller,
             Route::patch('mesas/{id}/items/{itemId}', [MesaController::class, 'actualizarItem'])->middleware('permiso:erp_ventas.editar');
             Route::delete('mesas/{id}/items/{itemId}', [MesaController::class, 'quitarItem'])->middleware('permiso:erp_ventas.editar');
             Route::post('mesas/{id}/enviar-cocina', [MesaController::class, 'enviarCocina'])->middleware('permiso:erp_ventas.editar');
+            Route::patch('mesas/{id}/preparada', [MesaController::class, 'marcarPreparada'])->middleware('permiso:erp_comandas.editar');
             Route::post('mesas/{id}/cobrar', [MesaController::class, 'cobrar'])->middleware('permiso:erp_ventas.crear');
             Route::post('mesas/{id}/cargar-habitacion', [MesaController::class, 'cargarHabitacion'])->middleware('permiso:erp_ventas.crear');
 

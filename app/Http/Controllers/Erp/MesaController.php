@@ -53,6 +53,8 @@ class MesaController extends Controller
                 Rule::unique('erp_mesas', 'numero')->where('id_tenant', $idTenant),
             ],
             'capacidad' => 'sometimes|integer|min:1',
+            'ubicacion' => 'nullable|string|max:100',
+            'descripcion' => 'nullable|string|max:255',
         ]);
 
         $data['id_tenant'] = $idTenant;
@@ -62,6 +64,26 @@ class MesaController extends Controller
         // Igual que en HabitacionController::store: 'estado' tiene default a
         // nivel de columna, así que sin refresh el objeto en memoria no lo trae.
         return response()->json($this->conRelaciones($mesa->refresh()), 201);
+    }
+
+    public function update(Request $request, string $id)
+    {
+        $idTenant = $request->user()->id_tenant;
+        $mesa = $this->mesaDelTenant($request, $id);
+
+        $data = $request->validate([
+            'numero' => [
+                'sometimes', 'integer', 'min:1',
+                Rule::unique('erp_mesas', 'numero')->where('id_tenant', $idTenant)->ignore($mesa->id),
+            ],
+            'capacidad' => 'sometimes|integer|min:1',
+            'ubicacion' => 'nullable|string|max:100',
+            'descripcion' => 'nullable|string|max:255',
+        ]);
+
+        $mesa->update($data);
+
+        return response()->json($this->conRelaciones($mesa));
     }
 
     public function destroy(Request $request, string $id)
@@ -190,9 +212,46 @@ class MesaController extends Controller
         $comanda = $mesa->comandaActiva;
         abort_if(! $comanda, 422, 'La mesa no tiene una comanda activa');
 
-        $comanda->update(['estado' => 'enviada', 'enviada_cocina' => true]);
+        // 'preparada' se reinicia por si la mesa ya se había marcado lista y el
+        // mesero agregó más items y volvió a enviar -- la ronda nueva debe
+        // reaparecer en la pantalla de barra/cocina.
+        $comanda->update(['estado' => 'enviada', 'enviada_cocina' => true, 'preparada' => false]);
 
         return response()->json($this->conRelaciones($mesa));
+    }
+
+    /**
+     * El bartender/cocinero marca la comanda como lista para que el mesero la
+     * recoja -- alimenta la pantalla de comandas pendientes (ver
+     * ErpMesaController::pendientes) sin inventar un cuarto valor de `estado`.
+     */
+    public function marcarPreparada(Request $request, string $id)
+    {
+        $mesa = $this->mesaDelTenant($request, $id);
+        $comanda = $mesa->comandaActiva;
+        abort_if(! $comanda || $comanda->estado !== 'enviada', 422, 'La mesa no tiene una comanda enviada a preparación');
+
+        $comanda->update(['preparada' => true]);
+
+        return response()->json($this->conRelaciones($mesa));
+    }
+
+    /**
+     * Comandas enviadas a cocina/barra y aún no preparadas, en cualquier mesa
+     * del tenant -- para la pantalla que ve el bartender/cocinero (no un
+     * mesero por mesa). Una vez que la marca "preparada" (ver
+     * marcarPreparada) desaparece de aquí; el mesero la sigue viendo en su
+     * propia mesa con el badge "Lista para servir" hasta cobrar/cerrarla.
+     */
+    public function pendientes(Request $request)
+    {
+        $mesas = Mesa::where('id_tenant', $request->user()->id_tenant)
+            ->whereHas('comandaActiva', fn ($q) => $q->where('estado', 'enviada')->where('preparada', false))
+            ->with('comandaActiva.items.producto')
+            ->orderBy('numero')
+            ->get();
+
+        return response()->json($mesas);
     }
 
     public function cobrar(Request $request, string $id)

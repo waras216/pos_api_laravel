@@ -16,11 +16,13 @@ class Comanda extends Model
         'id_mesa',
         'estado',
         'enviada_cocina',
+        'preparada',
         'total',
     ];
 
     protected $casts = [
         'enviada_cocina' => 'boolean',
+        'preparada' => 'boolean',
         'total' => 'float',
     ];
 
