@@ -315,9 +315,11 @@ Route::macro('permisoResourceSinVer', function (string $uri, string $controller,
             Route::delete('habitaciones/{id}/consumos/{consumoId}', [HabitacionController::class, 'quitarConsumo'])->middleware('permiso:erp_ventas.editar');
             Route::patch('habitaciones/{id}/mantenimiento', [HabitacionController::class, 'mantenimiento'])->middleware('permiso:erp_ventas.editar');
             Route::patch('habitaciones/{id}/limpieza', [HabitacionController::class, 'limpieza'])->middleware('permiso:erp_ventas.editar');
-            Route::get('habitaciones/incidencias', [HabitacionController::class, 'incidencias'])->middleware('permiso:erp_ventas.ver');
-            Route::post('habitaciones/{id}/incidencias', [HabitacionController::class, 'reportarIncidencia'])->middleware('permiso:erp_ventas.crear');
-            Route::patch('habitaciones/incidencias/{incidenciaId}/resolver', [HabitacionController::class, 'resolverIncidencia'])->middleware('permiso:erp_ventas.editar');
+            // El rol "Mantenimiento" (POS > Mantenimiento) solo tiene erp_habitaciones.mantenimiento,
+            // no erp_ventas.*; estas tres rutas aceptan cualquiera de los dos permisos (ver CheckPermiso).
+            Route::get('habitaciones/incidencias', [HabitacionController::class, 'incidencias'])->middleware('permiso:erp_ventas.ver,erp_habitaciones.mantenimiento');
+            Route::post('habitaciones/{id}/incidencias', [HabitacionController::class, 'reportarIncidencia'])->middleware('permiso:erp_ventas.crear,erp_habitaciones.mantenimiento');
+            Route::patch('habitaciones/incidencias/{incidenciaId}/resolver', [HabitacionController::class, 'resolverIncidencia'])->middleware('permiso:erp_ventas.editar,erp_habitaciones.mantenimiento');
             Route::get('habitaciones/solicitudes', [SolicitudHuespedController::class, 'index'])->middleware('permiso:erp_ventas.ver');
             Route::post('habitaciones/{id}/solicitudes', [SolicitudHuespedController::class, 'store'])->middleware('permiso:erp_ventas.crear');
             Route::patch('habitaciones/solicitudes/{id}/estado', [SolicitudHuespedController::class, 'cambiarEstado'])->middleware('permiso:erp_ventas.editar');

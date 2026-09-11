@@ -172,4 +172,57 @@ class Rol extends Model
             ['asignado_por' => $asignadoPor, 'asignado_en' => now(), 'created_at' => now(), 'updated_at' => now()]
         );
     }
+
+    /**
+     * Crea (si hace falta) el rol de sistema "tenant.cocinero" -- único
+     * permiso "erp_ventas.comandas" -- para este tenant. La migración que lo
+     * introdujo ya lo sembró para tenants existentes; esto cubre tenants
+     * creados después, llamado de forma perezosa desde RolController::index
+     * para que siempre aparezca en el selector de roles sin necesitar otra
+     * migración por cada tenant nuevo.
+     */
+    public static function firstOrCreateRolCocinero(int $idTenant): self
+    {
+        $rol = self::firstOrCreate(
+            ['id_tenant' => $idTenant, 'clave' => 'tenant.cocinero'],
+            [
+                'nombre' => 'Cocinero',
+                'descripcion' => 'Solo ve las comandas pendientes (cocina/bar) y las marca listas.',
+                'es_sistema' => true,
+            ]
+        );
+
+        $idPermiso = DB::table('permisos')->where('clave', 'erp_ventas.comandas')->value('id_permiso');
+        if ($idPermiso) {
+            DB::table('rol_permiso')->updateOrInsert(['id_rol' => $rol->id_rol, 'id_permiso' => $idPermiso], []);
+        }
+
+        return $rol;
+    }
+
+    /**
+     * Crea (si hace falta) el rol de sistema "tenant.mantenimiento" -- único
+     * permiso "erp_habitaciones.mantenimiento" -- para este tenant. Mismo
+     * patrón que firstOrCreateRolCocinero(): la migración que lo introdujo
+     * ya lo sembró para tenants existentes; esto cubre tenants creados
+     * después, llamado de forma perezosa desde RolController::index.
+     */
+    public static function firstOrCreateRolMantenimiento(int $idTenant): self
+    {
+        $rol = self::firstOrCreate(
+            ['id_tenant' => $idTenant, 'clave' => 'tenant.mantenimiento'],
+            [
+                'nombre' => 'Mantenimiento',
+                'descripcion' => 'Solo ve los tickets de mantenimiento por habitación y los resuelve.',
+                'es_sistema' => true,
+            ]
+        );
+
+        $idPermiso = DB::table('permisos')->where('clave', 'erp_habitaciones.mantenimiento')->value('id_permiso');
+        if ($idPermiso) {
+            DB::table('rol_permiso')->updateOrInsert(['id_rol' => $rol->id_rol, 'id_permiso' => $idPermiso], []);
+        }
+
+        return $rol;
+    }
 }

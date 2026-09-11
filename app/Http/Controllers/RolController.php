@@ -13,6 +13,9 @@ class RolController extends Controller
     {
         $idTenant = $request->user()->id_tenant;
 
+        Rol::firstOrCreateRolCocinero($idTenant);
+        Rol::firstOrCreateRolMantenimiento($idTenant);
+
         $roles = Rol::where('id_tenant', $idTenant)
             ->with(['permisos:id_permiso,clave', 'usuarios' => fn ($q) => $q->where('usuario_rol.id_tenant', $idTenant)->select('usuarios.id_usuario')])
             ->orderByDesc('es_sistema')
