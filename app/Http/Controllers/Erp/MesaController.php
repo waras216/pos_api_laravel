@@ -53,6 +53,9 @@ class MesaController extends Controller
                 Rule::unique('erp_mesas', 'numero')->where('id_tenant', $idTenant),
             ],
             'capacidad' => 'sometimes|integer|min:1',
+            'seccion' => ['nullable', 'string', Rule::in(['bar', 'restaurante'])],
+            'ubicacion' => 'nullable|string|max:255',
+            'descripcion' => 'nullable|string',
         ]);
 
         $data['id_tenant'] = $idTenant;
@@ -62,6 +65,27 @@ class MesaController extends Controller
         // Igual que en HabitacionController::store: 'estado' tiene default a
         // nivel de columna, así que sin refresh el objeto en memoria no lo trae.
         return response()->json($this->conRelaciones($mesa->refresh()), 201);
+    }
+
+    public function update(Request $request, string $id)
+    {
+        $idTenant = $request->user()->id_tenant;
+        $mesa = $this->mesaDelTenant($request, $id);
+
+        $data = $request->validate([
+            'numero' => [
+                'sometimes', 'integer', 'min:1',
+                Rule::unique('erp_mesas', 'numero')->where('id_tenant', $idTenant)->ignore($mesa->id),
+            ],
+            'capacidad' => 'sometimes|integer|min:1',
+            'seccion' => ['nullable', 'string', Rule::in(['bar', 'restaurante'])],
+            'ubicacion' => 'nullable|string|max:255',
+            'descripcion' => 'nullable|string',
+        ]);
+
+        $mesa->update($data);
+
+        return response()->json($this->conRelaciones($mesa));
     }
 
     public function destroy(Request $request, string $id)
@@ -191,6 +215,39 @@ class MesaController extends Controller
         abort_if(! $comanda, 422, 'La mesa no tiene una comanda activa');
 
         $comanda->update(['estado' => 'enviada', 'enviada_cocina' => true]);
+
+        return response()->json($this->conRelaciones($mesa));
+    }
+
+    public function pendientes(Request $request)
+    {
+        $mesas = Mesa::where('id_tenant', $request->user()->id_tenant)
+            ->whereHas('comandaActiva', fn ($q) => $q->where('estado', 'enviada'))
+            ->with('comandaActiva.items.producto')
+            ->orderBy('numero')
+            ->get();
+
+        return response()->json($mesas);
+    }
+
+    public function marcarPreparada(Request $request, string $id)
+    {
+        $mesa = $this->mesaDelTenant($request, $id);
+        $comanda = $mesa->comandaActiva;
+        abort_if(! $comanda, 422, 'La mesa no tiene una comanda activa');
+
+        $comanda->update(['estado' => 'preparada']);
+
+        return response()->json($this->conRelaciones($mesa));
+    }
+
+    public function marcarEntregada(Request $request, string $id)
+    {
+        $mesa = $this->mesaDelTenant($request, $id);
+        $comanda = $mesa->comandaActiva;
+        abort_if(! $comanda || $comanda->estado !== 'preparada', 422, 'La comanda no está lista para entregar');
+
+        $comanda->update(['estado' => 'entregada']);
 
         return response()->json($this->conRelaciones($mesa));
     }

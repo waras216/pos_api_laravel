@@ -15,6 +15,9 @@ class Mesa extends Model
         'id_tenant',
         'numero',
         'capacidad',
+        'seccion',
+        'ubicacion',
+        'descripcion',
         'estado',
         'mesero',
     ];
