@@ -54,8 +54,8 @@ class MesaController extends Controller
             ],
             'capacidad' => 'sometimes|integer|min:1',
             'seccion' => ['nullable', 'string', Rule::in(['bar', 'restaurante'])],
-            'ubicacion' => 'nullable|string|max:255',
-            'descripcion' => 'nullable|string',
+            'ubicacion' => 'nullable|string|max:100',
+            'descripcion' => 'nullable|string|max:255',
         ]);
 
         $data['id_tenant'] = $idTenant;
@@ -79,8 +79,8 @@ class MesaController extends Controller
             ],
             'capacidad' => 'sometimes|integer|min:1',
             'seccion' => ['nullable', 'string', Rule::in(['bar', 'restaurante'])],
-            'ubicacion' => 'nullable|string|max:255',
-            'descripcion' => 'nullable|string',
+            'ubicacion' => 'nullable|string|max:100',
+            'descripcion' => 'nullable|string|max:255',
         ]);
 
         $mesa->update($data);
@@ -219,6 +219,11 @@ class MesaController extends Controller
         return response()->json($this->conRelaciones($mesa));
     }
 
+    /**
+     * Comandas enviadas a cocina/barra y aún no preparadas, en cualquier mesa
+     * del tenant -- para la pantalla que ve el bartender/cocinero (no un
+     * mesero por mesa).
+     */
     public function pendientes(Request $request)
     {
         $mesas = Mesa::where('id_tenant', $request->user()->id_tenant)
