@@ -6,10 +6,11 @@ use App\Models\Concerns\BelongsToTenant;
 use App\Models\Proveedor;
 use App\Models\Usuarios;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class OrdenCompra extends Model
 {
-    use BelongsToTenant;
+    use SoftDeletes, BelongsToTenant;
 
     protected $table = 'erp_ordenes_compra';
 

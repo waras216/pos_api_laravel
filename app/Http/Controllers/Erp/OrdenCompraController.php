@@ -90,13 +90,32 @@ class OrdenCompraController extends Controller
     {
         $orden = OrdenCompra::where('id_tenant', $request->user()->id_tenant)->findOrFail($id);
 
-        if ($orden->estado !== 'pendiente') {
-            return response()->json(['message' => 'Solo se pueden eliminar órdenes pendientes'], 422);
-        }
-
+        // Soft-delete (papelera): archiva el registro, no revierte el stock
+        // ni los asientos contables que ya generó recibir() -- por eso no
+        // hace falta restringir por estado, igual que en el resto de recursos
+        // con papelera (Proveedores, Inventario, etc.).
         $orden->delete();
 
         return response()->json(['message' => 'Orden eliminada']);
+    }
+
+    public function papelera(Request $request)
+    {
+        return response()->json(
+            OrdenCompra::onlyTrashed()
+                ->where('id_tenant', $request->user()->id_tenant)
+                ->with(['proveedor', 'items.producto', 'comprador'])
+                ->latest('deleted_at')
+                ->get()
+        );
+    }
+
+    public function restaurar(Request $request, string $id)
+    {
+        $orden = OrdenCompra::onlyTrashed()->where('id_tenant', $request->user()->id_tenant)->findOrFail($id);
+        $orden->restore();
+
+        return response()->json($orden->load(['proveedor', 'items.producto', 'comprador']));
     }
 
     public function recibir(Request $request, string $id)

@@ -27,6 +27,13 @@ class Cliente extends Model
         'direccion',
         'tipo',
         'activo',
+        'limite_credito',
+        'saldo_credito',
+    ];
+
+    protected $casts = [
+        'limite_credito' => 'decimal:2',
+        'saldo_credito' => 'decimal:2',
     ];
 
     public function contactos()

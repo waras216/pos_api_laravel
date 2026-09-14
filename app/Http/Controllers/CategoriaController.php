@@ -80,4 +80,22 @@ class CategoriaController extends Controller
 
         return response()->json(['message' => 'Categoria eliminada']);
     }
+
+    public function papelera(Request $request)
+    {
+        return response()->json(
+            Categoria::onlyTrashed()
+                ->where('id_tenant', $request->user()->id_tenant)
+                ->latest('deleted_at')
+                ->get()
+        );
+    }
+
+    public function restaurar(Request $request, string $id)
+    {
+        $categoria = Categoria::onlyTrashed()->where('id_tenant', $request->user()->id_tenant)->findOrFail($id);
+        $categoria->restore();
+
+        return response()->json($categoria);
+    }
 }

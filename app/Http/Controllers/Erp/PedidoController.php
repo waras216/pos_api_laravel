@@ -182,16 +182,36 @@ class PedidoController extends Controller
             ->with('items')
             ->findOrFail($id);
 
-        if ($pedido->estado !== 'pendiente') {
-            return response()->json(['message' => 'Solo se pueden eliminar pedidos pendientes; usa cancelar'], 422);
-        }
-
         DB::transaction(function () use ($pedido, $request) {
-            $this->restaurarStock($pedido, $request->user()->id_tenant, 'eliminacion_venta');
+            // Solo "pendiente" no pasó todavía por cancelar() (que ya
+            // restaura el stock) ni por una facturación ya asentada -- restaurar
+            // aquí también para esos estados duplicaría la entrada de stock.
+            if ($pedido->estado === 'pendiente') {
+                $this->restaurarStock($pedido, $request->user()->id_tenant, 'eliminacion_venta');
+            }
             $pedido->delete();
         });
 
         return response()->json(['message' => 'Pedido eliminado']);
+    }
+
+    public function papelera(Request $request)
+    {
+        return response()->json(
+            Pedido::onlyTrashed()
+                ->where('id_tenant', $request->user()->id_tenant)
+                ->with(['cliente', 'items.producto', 'cajero', 'pagos'])
+                ->latest('deleted_at')
+                ->get()
+        );
+    }
+
+    public function restaurar(Request $request, string $id)
+    {
+        $pedido = Pedido::onlyTrashed()->where('id_tenant', $request->user()->id_tenant)->findOrFail($id);
+        $pedido->restore();
+
+        return response()->json($pedido->load(['cliente', 'items.producto', 'cajero', 'pagos']));
     }
 
     public function cancelar(Request $request, string $id)

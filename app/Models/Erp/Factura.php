@@ -5,10 +5,11 @@ namespace App\Models\Erp;
 use App\Models\Concerns\BelongsToTenant;
 use App\Models\Usuarios;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Factura extends Model
 {
-    use BelongsToTenant;
+    use SoftDeletes, BelongsToTenant;
 
     protected $table = 'erp_facturas';
 

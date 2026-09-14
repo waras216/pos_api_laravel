@@ -74,4 +74,39 @@ class FacturaController extends Controller
 
         return response()->json($factura->load(['pedido.cliente', 'usuario']));
     }
+
+    public function destroy(Request $request, string $id)
+    {
+        $factura = Factura::where('id_tenant', $request->user()->id_tenant)->findOrFail($id);
+
+        // Un CFDI timbrado es un documento fiscal real -- no se borra, solo se
+        // cancela (ver cancelar() arriba). Solo se puede mandar a la papelera
+        // una factura que nunca llegó a timbrarse o que ya está cancelada.
+        if ($factura->estado === 'timbrada') {
+            return response()->json(['message' => 'Una factura timbrada no se puede eliminar; cancélala primero'], 422);
+        }
+
+        $factura->delete();
+
+        return response()->json(['message' => 'Factura eliminada']);
+    }
+
+    public function papelera(Request $request)
+    {
+        return response()->json(
+            Factura::onlyTrashed()
+                ->where('id_tenant', $request->user()->id_tenant)
+                ->with(['pedido.cliente', 'usuario'])
+                ->latest('deleted_at')
+                ->get()
+        );
+    }
+
+    public function restaurar(Request $request, string $id)
+    {
+        $factura = Factura::onlyTrashed()->where('id_tenant', $request->user()->id_tenant)->findOrFail($id);
+        $factura->restore();
+
+        return response()->json($factura->load(['pedido.cliente', 'usuario']));
+    }
 }

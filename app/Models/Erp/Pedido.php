@@ -6,10 +6,11 @@ use App\Models\Cliente;
 use App\Models\Concerns\BelongsToTenant;
 use App\Models\Usuarios;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Pedido extends Model
 {
-    use BelongsToTenant;
+    use SoftDeletes, BelongsToTenant;
 
     protected $table = 'erp_pedidos_venta';
 

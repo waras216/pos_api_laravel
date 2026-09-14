@@ -53,6 +53,13 @@ use App\Http\Controllers\Erp\CuentaContableController;
 use App\Http\Controllers\Erp\AsientoController;
 use App\Http\Controllers\Erp\EstadosFinancierosController;
 use App\Http\Controllers\Erp\NominaController;
+use App\Http\Controllers\Erp\SucursalController;
+use App\Http\Controllers\Erp\CajaController;
+use App\Http\Controllers\Erp\TurnoCajaController;
+use App\Http\Controllers\Erp\TransferenciaController;
+use App\Http\Controllers\Erp\PromocionController;
+use App\Http\Controllers\Erp\DevolucionController;
+use App\Http\Controllers\Erp\CreditoController;
 use Symfony\Component\Routing\RouterInterface;
 
 // Gatea un apiResource completo (incluyendo index/show) por permiso granular
@@ -181,6 +188,8 @@ Route::macro('permisoResourceSinVer', function (string $uri, string $controller,
             Route::delete('empresas/{id}', [EmpresaController::class, 'destroy']);
         });
 
+        Route::get('categorias/papelera', [CategoriaController::class, 'papelera'])->middleware('permiso:categorias.eliminar');
+        Route::patch('categorias/{id}/restaurar', [CategoriaController::class, 'restaurar'])->middleware('permiso:categorias.eliminar');
         Route::permisoResourceSinVer('categorias', CategoriaController::class, 'categorias');
         Route::permisoResourceSinVer('productos', ProductoController::class, 'productos');
 
@@ -236,6 +245,8 @@ Route::macro('permisoResourceSinVer', function (string $uri, string $controller,
             Route::patch('proveedores/{id}/restaurar', [ProveedorController::class, 'restaurar'])->middleware('permiso:erp_proveedores.eliminar');
             Route::permisoResourceSinVer('proveedores', ProveedorController::class, 'erp_proveedores');
 
+            Route::get('compras/papelera', [OrdenCompraController::class, 'papelera'])->middleware('permiso:erp_compras.eliminar');
+            Route::patch('compras/{id}/restaurar', [OrdenCompraController::class, 'restaurar'])->middleware('permiso:erp_compras.eliminar');
             Route::apiResource('compras', OrdenCompraController::class)->except(['update'])
                 ->middlewareFor('store', 'permiso:erp_compras.crear')
                 ->middlewareFor('destroy', 'permiso:erp_compras.eliminar');
@@ -250,6 +261,8 @@ Route::macro('permisoResourceSinVer', function (string $uri, string $controller,
                 ->middlewareFor(['index', 'show'], 'permiso:erp_finanzas.ver')
                 ->middlewareFor('store', 'permiso:erp_finanzas.crear')
                 ->middlewareFor('destroy', 'permiso:erp_finanzas.eliminar');
+            Route::get('ventas/papelera', [PedidoController::class, 'papelera'])->middleware('permiso:erp_ventas.eliminar');
+            Route::patch('ventas/{id}/restaurar', [PedidoController::class, 'restaurar'])->middleware('permiso:erp_ventas.eliminar');
             Route::permisoResourceSinVer('ventas', PedidoController::class, 'erp_ventas');
             Route::patch('ventas/{id}/cancelar', [PedidoController::class, 'cancelar'])->middleware('permiso:erp_ventas.editar');
 
@@ -257,11 +270,49 @@ Route::macro('permisoResourceSinVer', function (string $uri, string $controller,
             // sobre pedidos ya facturados/cobrados. Reutiliza los permisos
             // erp_ventas.* en vez de sembrar un grupo nuevo: es una capa
             // sobre el mismo recurso de negocio (Ventas), no un módulo aparte.
+            Route::get('facturas/papelera', [FacturaController::class, 'papelera'])->middleware('permiso:erp_ventas.eliminar');
+            Route::patch('facturas/{id}/restaurar', [FacturaController::class, 'restaurar'])->middleware('permiso:erp_ventas.eliminar');
             Route::get('facturas', [FacturaController::class, 'index'])->middleware('permiso:erp_ventas.ver');
             Route::post('facturas', [FacturaController::class, 'store'])->middleware('permiso:erp_ventas.crear');
             Route::get('facturas/{id}', [FacturaController::class, 'show'])->middleware('permiso:erp_ventas.ver');
             Route::post('facturas/{id}/timbrar', [FacturaController::class, 'timbrar'])->middleware('permiso:erp_ventas.editar');
             Route::patch('facturas/{id}/cancelar', [FacturaController::class, 'cancelar'])->middleware('permiso:erp_ventas.editar');
+            Route::delete('facturas/{id}', [FacturaController::class, 'destroy'])->middleware('permiso:erp_ventas.eliminar');
+
+            // Tienda / Sucursal (nicho "tienda" -- ver module.service.ts en el
+            // frontend): sucursales, cajas y turnos, transferencias de stock
+            // entre sucursales, promociones, devoluciones/garantías y crédito
+            // a clientes. Reutiliza el macro permisoResourceSinVer donde el
+            // CRUD es plano; las transiciones de estado van como rutas propias.
+            Route::permisoResourceSinVer('sucursales', SucursalController::class, 'erp_sucursales');
+
+            Route::permisoResourceSinVer('cajas', CajaController::class, 'erp_cajas');
+            Route::get('turnos-caja', [TurnoCajaController::class, 'index'])->middleware('permiso:erp_cajas.ver');
+            Route::post('turnos-caja/abrir', [TurnoCajaController::class, 'abrir'])->middleware('permiso:erp_cajas.crear');
+            Route::patch('turnos-caja/{id}/cerrar', [TurnoCajaController::class, 'cerrar'])->middleware('permiso:erp_cajas.editar');
+
+            Route::apiResource('transferencias', TransferenciaController::class)->except(['update'])
+                ->middlewareFor('store', 'permiso:erp_transferencias.crear')
+                ->middlewareFor('destroy', 'permiso:erp_transferencias.eliminar');
+            Route::patch('transferencias/{id}/enviar', [TransferenciaController::class, 'enviar'])->middleware('permiso:erp_transferencias.editar');
+            Route::patch('transferencias/{id}/recibir', [TransferenciaController::class, 'recibir'])->middleware('permiso:erp_transferencias.editar');
+            Route::patch('transferencias/{id}/cancelar', [TransferenciaController::class, 'cancelar'])->middleware('permiso:erp_transferencias.editar');
+
+            Route::permisoResourceSinVer('promociones', PromocionController::class, 'erp_promociones');
+            Route::patch('promociones/{id}/toggle', [PromocionController::class, 'toggle'])->middleware('permiso:erp_promociones.editar');
+
+            Route::apiResource('devoluciones', DevolucionController::class)->except(['update'])
+                ->middlewareFor('store', 'permiso:erp_devoluciones.crear')
+                ->middlewareFor('destroy', 'permiso:erp_devoluciones.eliminar');
+            Route::patch('devoluciones/{id}/aprobar', [DevolucionController::class, 'aprobar'])->middleware('permiso:erp_devoluciones.editar');
+            Route::patch('devoluciones/{id}/rechazar', [DevolucionController::class, 'rechazar'])->middleware('permiso:erp_devoluciones.editar');
+            Route::patch('devoluciones/{id}/completar', [DevolucionController::class, 'completar'])->middleware('permiso:erp_devoluciones.editar');
+
+            Route::get('creditos', [CreditoController::class, 'index'])->middleware('permiso:erp_creditos.ver');
+            Route::get('creditos/{idCliente}/movimientos', [CreditoController::class, 'movimientos'])->middleware('permiso:erp_creditos.ver');
+            Route::patch('creditos/{idCliente}/limite', [CreditoController::class, 'actualizarLimite'])->middleware('permiso:erp_creditos.editar');
+            Route::post('creditos/{idCliente}/cargar', [CreditoController::class, 'cargar'])->middleware('permiso:erp_creditos.crear');
+            Route::post('creditos/{idCliente}/abonar', [CreditoController::class, 'abonar'])->middleware('permiso:erp_creditos.crear');
 
             // Contabilidad formal: plan de cuentas, asientos de partida doble
             // y estados financieros. Reutiliza el grupo de permisos
